@@ -13,7 +13,10 @@ import {
   FileCheck, 
   Database,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  ArrowLeftRight,
+  ClipboardList,
+  Cpu,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -43,6 +46,14 @@ export function Sidebar() {
       items: [
         { label: 'Excel Import', href: '/import', icon: FileSpreadsheet, color: 'text-teal-500' },
         { label: 'Export (Excel/Word)', href: '/export', icon: FileCheck, color: 'text-blue-500' },
+      ],
+    },
+    {
+      category: 'WITHDRAW & ISSUE',
+      items: [
+        { label: 'Withdraw & Issue', href: '/withdraw-issue', icon: ArrowLeftRight, color: 'text-amber-400' },
+        { label: 'Records', href: '/records', icon: ClipboardList, color: 'text-purple-400' },
+        { label: 'Upgradation', href: '/upgradation', icon: Cpu, color: 'text-emerald-400' },
       ],
     },
     ...(isAdmin ? [{

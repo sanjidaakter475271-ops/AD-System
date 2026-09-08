@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     const equipmentType = searchParams.get('type') || '';
     const adStatus = searchParams.get('adStatus') || '';
     const isNewPc = searchParams.get('isNewPc') || '';
+    const issueStatus = searchParams.get('issueStatus') || '';
     const win11Eligible = searchParams.get('win11Eligible') || '';
 
     const where: any = {};
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
     if (adStatus) where.adStatus = adStatus;
     if (isNewPc === 'true') where.isNewPc = true;
     if (isNewPc === 'false') where.isNewPc = false;
+    if (issueStatus) where.issueStatus = issueStatus;
     if (win11Eligible) where.win11Eligible = { contains: win11Eligible };
 
     if (search) {
@@ -111,6 +113,8 @@ export async function POST(request: Request) {
         location: body.location || null,
         issueStatus: body.issueStatus || 'Not Issued',
         isNewPc: Boolean(body.isNewPc),
+        intendedOffice: body.isNewPc ? (body.intendedOffice || null) : null,
+        intendedBase: body.isNewPc ? (body.intendedBase || null) : null,
         adStatus: body.adStatus || 'Pending',
         adRemark: body.adRemark || null,
         win10Remark: body.win10Remark || null,

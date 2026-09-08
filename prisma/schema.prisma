@@ -45,6 +45,8 @@ model Equipment {
   location      String?
   issueStatus   String?  @map("issue_status")
   isNewPc       Boolean  @default(false) @map("is_new_pc")
+  intendedOffice String? @map("intended_office")  // For new PCs: which office this PC is bought for
+  intendedBase   String? @map("intended_base")    // For new PCs: which base this PC is bought for
   adStatus      String   @default("Pending") @map("ad_status") // "Joined", "Not Joined", "Pending"
   adRemark      String?  @map("ad_remark")
   win10Remark   String?  @map("win10_remark")
@@ -52,6 +54,12 @@ model Equipment {
   win10Eligible String?  @map("win10_eligible_ver")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  issueRecords          IssueRecord[]      @relation("IssuedEquipment")
+  replacementIssues     IssueRecord[]      @relation("ReplacedEquipment")
+  withdrawalRecords     WithdrawalRecord[]
+  upgradationRecords    UpgradationRecord[]
 
   @@map("equipment")
 }
@@ -67,4 +75,80 @@ model User {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+// Tracks every PC issue event (with or without replacement)
+model IssueRecord {
+  id                  Int       @id @default(autoincrement())
+  equipmentId         Int       @map("equipment_id")
+  equipment           Equipment @relation("IssuedEquipment", fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  issuedTo            String    @map("issued_to")           // Person name / Section who received the PC
+  issuedOffice        String    @map("issued_office")       // Office receiving the PC
+  issuedBase          String    @map("issued_base")         // Base unit of receiving office
+  issuedAt            DateTime  @default(now()) @map("issued_at")
+
+  sectionLabel        String?   @map("section_label")       // e.g. "PC-1", "PC-2" within same section
+  pcNumber            Int?      @map("pc_number")           // auto-numbered within same section
+
+  letterRef           String?   @map("letter_ref")          // Letter number/reference
+  letterAuthority     String?   @map("letter_authority")    // Who signed/authorized the letter
+
+  isReplacement       Boolean   @default(false) @map("is_replacement")
+  replacedEquipmentId Int?      @map("replaced_equipment_id") // Old PC being replaced
+  replacedEquipment   Equipment? @relation("ReplacedEquipment", fields: [replacedEquipmentId], references: [id])
+
+  withdrawalRecord    WithdrawalRecord? // If replacement, the old PC withdrawal record
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@map("issue_records")
+}
+
+// Tracks PC withdrawals (old PCs taken back, especially on replacement)
+model WithdrawalRecord {
+  id              Int          @id @default(autoincrement())
+  equipmentId     Int          @map("equipment_id")
+  equipment       Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  withdrawnFrom   String       @map("withdrawn_from")    // Office where PC was withdrawn from
+  withdrawnBase   String       @map("withdrawn_base")    // Base unit
+  withdrawnAt     DateTime     @default(now()) @map("withdrawn_at")
+  withdrawnBy     String?      @map("withdrawn_by")      // Who authorized the withdrawal
+  reason          String?                                // Reason for withdrawal
+
+  issueRecordId   Int?         @unique @map("issue_record_id") // Linked issue (replacement)
+  issueRecord     IssueRecord? @relation(fields: [issueRecordId], references: [id])
+
+  upgradation     UpgradationRecord?
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@map("withdrawal_records")
+}
+
+// Tracks post-withdrawal upgradation and redistribution of withdrawn PCs
+model UpgradationRecord {
+  id                Int              @id @default(autoincrement())
+  equipmentId       Int              @map("equipment_id")
+  equipment         Equipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  withdrawalId      Int              @unique @map("withdrawal_id")
+  withdrawal        WithdrawalRecord @relation(fields: [withdrawalId], references: [id])
+
+  isUpgraded        Boolean          @default(false) @map("is_upgraded")
+  upgradedAt        DateTime?        @map("upgraded_at")
+  upgradedBy        String?          @map("upgraded_by")
+
+  isDistributed     Boolean          @default(false) @map("is_distributed")
+  distributedTo     String?          @map("distributed_to")    // New office name
+  distributedBase   String?          @map("distributed_base")  // New base unit
+  distributedAt     DateTime?        @map("distributed_at")
+
+  remarks           String?          // e.g. "Withdrawn from Dte AD, Upgraded, Now in Dte Fin"
+
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@map("upgradation_records")
 }

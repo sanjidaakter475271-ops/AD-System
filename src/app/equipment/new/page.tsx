@@ -52,6 +52,8 @@ export default function NewEquipmentPage() {
     location: '',
     issueStatus: ISSUE_STATUS_OPTIONS[0],
     isNewPc: false,
+    intendedOffice: '',   // which office this new PC is bought for
+    intendedBase: '',     // which base this new PC is bought for
     adStatus: 'Pending',
     adRemark: '',
     win10Remark: '',
@@ -77,8 +79,25 @@ export default function NewEquipmentPage() {
     }
   }, [user]);
 
+  const [locations, setLocations] = useState<string[]>([]);
+  
+  useEffect(() => {
+    // Fetch locations filtered by selected baseUnit and directorate
+    if (!formData.baseUnit || !formData.directorate) return;
+    const q = new URLSearchParams({
+      baseUnit: formData.baseUnit,
+      directorate: formData.directorate,
+    });
+    fetch(`/api/equipment?${q.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        const locs = Array.from(new Set(data.map((i: any) => i.location).filter(Boolean)));
+        setLocations(locs as string[]);
+      })
+      .catch(() => {});
+  }, [formData.baseUnit, formData.directorate]);
   // Active base unit object from DB
-  const activeBaseObject = customBaseUnits.find(b => b.name === formData.baseUnit);
+  const activeBaseObject = customBaseUnits.find((b: any) => b.name === formData.baseUnit);
   
   // Dynamic offices: if offices exist for this base in DB, use them; otherwise fallback to defaults or empty array
   const availableOffices = (activeBaseObject?.offices && activeBaseObject.offices.length > 0)
@@ -420,6 +439,49 @@ export default function NewEquipmentPage() {
               </div>
             </div>
 
+            {/* Intended Office & Base — only for new PCs */}
+            {formData.isNewPc && (
+              <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-amber-950/30 border border-amber-600/30">
+                <div className="col-span-full text-[11px] font-bold text-amber-400 uppercase tracking-wide">
+                  Which office is this new PC intended for? (for replacement matching)
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Intended Base Unit</label>
+                  <input
+                    type="text"
+                    list="base-units"
+                    placeholder="Search Base..."
+                    value={formData.intendedBase}
+                    onChange={(e) => setFormData({ ...formData, intendedBase: e.target.value, intendedOffice: '' })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required={formData.isNewPc}
+                  />
+                  <datalist id="base-units">
+                    {Array.from(new Set([...BASE_UNITS, ...customBaseUnits.map((b: any) => b.name)])).map(b => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Intended Office / Directorate</label>
+                  <input
+                    type="text"
+                    list="offices"
+                    placeholder="Search Office..."
+                    value={formData.intendedOffice}
+                    onChange={(e) => setFormData({ ...formData, intendedOffice: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required={formData.isNewPc}
+                  />
+                  <datalist id="offices">
+                    {Array.from(new Set([...DIRECTORATES, ... (customBaseUnits.find(b => b.name === formData.intendedBase)?.offices.map((o: any) => o.name) || [])])).map(o => (
+                      <option key={o} value={o} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
 
@@ -608,14 +670,18 @@ export default function NewEquipmentPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Physical Location / Room</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Section / Physical Location</label>
               <input
                 type="text"
-                placeholder="e.g. Room 302, Building A"
+                list="locations"
+                placeholder="e.g. Server Room A, ADOC Section"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
+              <datalist id="locations">
+                {locations.map(loc => <option key={loc} value={loc} />)}
+              </datalist>
             </div>
 
           </div>

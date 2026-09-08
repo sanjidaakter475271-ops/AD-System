@@ -30,6 +30,6 @@ export const HDD_OPTIONS = [0, 128, 240, 250, 256, 500, 512, 1000, 1024, 2000];
 
 export const STATUS_OPTIONS = ["Svc", "U/S", "R/S", "Repair"];
 
-export const ISSUE_STATUS_OPTIONS = ["Not Issued", "Withdrawn & Issued", "Issued"];
+export const ISSUE_STATUS_OPTIONS = ["Not Issued", "Withdrawn & Issued", "Issued", "Withdrawn"];
 
 export const AD_STATUS_OPTIONS = ["Joined", "Not Joined", "Pending"];
