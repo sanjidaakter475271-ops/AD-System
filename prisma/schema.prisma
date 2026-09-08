@@ -1,0 +1,70 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model BaseUnit {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  offices   Office[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("base_units")
+}
+
+model Office {
+  id         Int      @id @default(autoincrement())
+  name       String
+  baseUnitId Int      @map("base_unit_id")
+  baseUnit   BaseUnit @relation(fields: [baseUnitId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([name, baseUnitId])
+  @@map("offices")
+}
+
+model Equipment {
+  id            Int      @id @default(autoincrement())
+  sn            Int      @unique
+  baseUnit      String   @default("Air HQ") @map("base_unit")
+  directorate   String
+  equipmentType String   @map("equipment_type")
+  brandModel    String?  @map("brand_model")
+  serialNo      String?  @map("serial_no")
+  processor     String?
+  generation    Int?
+  ramGb         Int?     @map("ram_gb")
+  ssdGb         Int      @default(0) @map("ssd_gb")
+  hddGb         Int      @default(0) @map("hdd_gb")
+  storageType   String?  @map("storage_type")
+  status        String
+  location      String?
+  issueStatus   String?  @map("issue_status")
+  isNewPc       Boolean  @default(false) @map("is_new_pc")
+  adStatus      String   @default("Pending") @map("ad_status") // "Joined", "Not Joined", "Pending"
+  adRemark      String?  @map("ad_remark")
+  win10Remark   String?  @map("win10_remark")
+  win11Eligible String?  @map("win11_eligible")
+  win10Eligible String?  @map("win10_eligible_ver")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("equipment")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  username  String   @unique
+  password  String
+  role      String   @default("user") // "admin" or "user"
+  baseUnit  String   @default("Air HQ") @map("base_unit")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("users")
+}

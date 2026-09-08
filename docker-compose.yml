@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Database Service (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: air_hq_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: air_hq_user
+      POSTGRES_PASSWORD: air_hq_password
+      POSTGRES_DB: air_hq_inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U air_hq_user -d air_hq_inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Application Service
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: air_hq_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://air_hq_user:air_hq_password@db:5432/air_hq_inventory?schema=public"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "air-hq-inventory-super-secret-key-2026-baf-secure"
+      NODE_ENV: "production"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npx prisma db push && npx prisma db seed && npm run start"
+
+volumes:
+  postgres_data:
