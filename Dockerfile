@@ -24,6 +24,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Run build (which runs prisma generate && next build)
+RUN npx prisma generate
 RUN npm run build
 
 # Step 3: Production image runner
