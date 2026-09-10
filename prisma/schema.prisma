@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "cockroachdb"
   url      = env("DATABASE_URL")
 }
 
@@ -8,7 +8,7 @@ generator client {
 }
 
 model BaseUnit {
-  id        Int      @id @default(autoincrement())
+  id        Int      @id @default(sequence())
   name      String   @unique
   offices   Office[]
   createdAt DateTime @default(now()) @map("created_at")
@@ -17,7 +17,7 @@ model BaseUnit {
 }
 
 model Office {
-  id         Int      @id @default(autoincrement())
+  id         Int      @id @default(sequence())
   name       String
   baseUnitId Int      @map("base_unit_id")
   baseUnit   BaseUnit @relation(fields: [baseUnitId], references: [id], onDelete: Cascade)
@@ -28,7 +28,7 @@ model Office {
 }
 
 model Equipment {
-  id            Int      @id @default(autoincrement())
+  id            Int      @id @default(sequence())
   sn            Int      @unique
   baseUnit      String   @default("Air HQ") @map("base_unit")
   directorate   String
@@ -45,9 +45,9 @@ model Equipment {
   location      String?
   issueStatus   String?  @map("issue_status")
   isNewPc       Boolean  @default(false) @map("is_new_pc")
-  intendedOffice String? @map("intended_office")  // For new PCs: which office this PC is bought for
-  intendedBase   String? @map("intended_base")    // For new PCs: which base this PC is bought for
-  adStatus      String   @default("Pending") @map("ad_status") // "Joined", "Not Joined", "Pending"
+  intendedOffice String? @map("intended_office")
+  intendedBase   String? @map("intended_base")
+  adStatus      String   @default("Pending") @map("ad_status")
   adRemark      String?  @map("ad_remark")
   win10Remark   String?  @map("win10_remark")
   win11Eligible String?  @map("win11_eligible")
@@ -65,11 +65,11 @@ model Equipment {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        Int      @id @default(sequence())
   name      String?
   username  String   @unique
   password  String
-  role      String   @default("user") // "admin" or "user"
+  role      String   @default("user")
   baseUnit  String   @default("Air HQ") @map("base_unit")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -77,47 +77,45 @@ model User {
   @@map("users")
 }
 
-// Tracks every PC issue event (with or without replacement)
 model IssueRecord {
-  id                  Int       @id @default(autoincrement())
+  id                  Int       @id @default(sequence())
   equipmentId         Int       @map("equipment_id")
   equipment           Equipment @relation("IssuedEquipment", fields: [equipmentId], references: [id], onDelete: Cascade)
 
-  issuedTo            String    @map("issued_to")           // Person name / Section who received the PC
-  issuedOffice        String    @map("issued_office")       // Office receiving the PC
-  issuedBase          String    @map("issued_base")         // Base unit of receiving office
+  issuedTo            String    @map("issued_to")
+  issuedOffice        String    @map("issued_office")
+  issuedBase          String    @map("issued_base")
   issuedAt            DateTime  @default(now()) @map("issued_at")
 
-  sectionLabel        String?   @map("section_label")       // e.g. "PC-1", "PC-2" within same section
-  pcNumber            Int?      @map("pc_number")           // auto-numbered within same section
+  sectionLabel        String?   @map("section_label")
+  pcNumber            Int?      @map("pc_number")
 
-  letterRef           String?   @map("letter_ref")          // Letter number/reference
-  letterAuthority     String?   @map("letter_authority")    // Who signed/authorized the letter
+  letterRef           String?   @map("letter_ref")
+  letterAuthority     String?   @map("letter_authority")
 
   isReplacement       Boolean   @default(false) @map("is_replacement")
-  replacedEquipmentId Int?      @map("replaced_equipment_id") // Old PC being replaced
+  replacedEquipmentId Int?      @map("replaced_equipment_id")
   replacedEquipment   Equipment? @relation("ReplacedEquipment", fields: [replacedEquipmentId], references: [id])
 
-  withdrawalRecord    WithdrawalRecord? // If replacement, the old PC withdrawal record
+  withdrawalRecord    WithdrawalRecord?
 
   createdAt           DateTime  @default(now()) @map("created_at")
 
   @@map("issue_records")
 }
 
-// Tracks PC withdrawals (old PCs taken back, especially on replacement)
 model WithdrawalRecord {
-  id              Int          @id @default(autoincrement())
+  id              Int          @id @default(sequence())
   equipmentId     Int          @map("equipment_id")
   equipment       Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
-  withdrawnFrom   String       @map("withdrawn_from")    // Office where PC was withdrawn from
-  withdrawnBase   String       @map("withdrawn_base")    // Base unit
+  withdrawnFrom   String       @map("withdrawn_from")
+  withdrawnBase   String       @map("withdrawn_base")
   withdrawnAt     DateTime     @default(now()) @map("withdrawn_at")
-  withdrawnBy     String?      @map("withdrawn_by")      // Who authorized the withdrawal
-  reason          String?                                // Reason for withdrawal
+  withdrawnBy     String?      @map("withdrawn_by")
+  reason          String?
 
-  issueRecordId   Int?         @unique @map("issue_record_id") // Linked issue (replacement)
+  issueRecordId   Int?         @unique @map("issue_record_id")
   issueRecord     IssueRecord? @relation(fields: [issueRecordId], references: [id])
 
   upgradation     UpgradationRecord?
@@ -127,9 +125,8 @@ model WithdrawalRecord {
   @@map("withdrawal_records")
 }
 
-// Tracks post-withdrawal upgradation and redistribution of withdrawn PCs
 model UpgradationRecord {
-  id                Int              @id @default(autoincrement())
+  id                Int              @id @default(sequence())
   equipmentId       Int              @map("equipment_id")
   equipment         Equipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
@@ -141,11 +138,11 @@ model UpgradationRecord {
   upgradedBy        String?          @map("upgraded_by")
 
   isDistributed     Boolean          @default(false) @map("is_distributed")
-  distributedTo     String?          @map("distributed_to")    // New office name
-  distributedBase   String?          @map("distributed_base")  // New base unit
+  distributedTo     String?          @map("distributed_to")
+  distributedBase   String?          @map("distributed_base")
   distributedAt     DateTime?        @map("distributed_at")
 
-  remarks           String?          // e.g. "Withdrawn from Dte AD, Upgraded, Now in Dte Fin"
+  remarks           String?
 
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
