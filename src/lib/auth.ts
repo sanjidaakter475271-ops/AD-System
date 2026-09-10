@@ -17,27 +17,34 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const cleanUsername = credentials.username.trim().toLowerCase();
-        const user = await prisma.user.findUnique({
-          where: { username: cleanUsername },
-        });
+        try {
+          const cleanUsername = credentials.username.trim().toLowerCase();
+          const user = await prisma.user.findUnique({
+            where: { username: cleanUsername },
+          });
 
-        if (!user) {
+          if (!user) {
+            console.log(`[AUTH] User not found: ${cleanUsername}`);
+            return null;
+          }
+
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+          if (!isValidPassword) {
+            console.log(`[AUTH] Invalid password for user: ${cleanUsername}`);
+            return null;
+          }
+
+          return {
+            id: String(user.id),
+            name: user.name || user.username,
+            username: user.username,
+            role: user.role,
+            baseUnit: user.baseUnit || 'Air HQ',
+          };
+        } catch (error) {
+          console.error('[AUTH] Error during login:', error);
           return null;
         }
-
-        const isValidPassword = await bcrypt.compare(credentials.password, user.password);
-        if (!isValidPassword) {
-          return null;
-        }
-
-        return {
-          id: String(user.id),
-          name: user.name || user.username,
-          username: user.username,
-          role: user.role,
-          baseUnit: user.baseUnit || 'Air HQ',
-        };
       },
     }),
   ],
