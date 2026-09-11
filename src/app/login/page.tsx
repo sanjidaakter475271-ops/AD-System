@@ -65,8 +65,20 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row relative overflow-hidden">
-      
       {/* Ambient background glows */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundColor: '#020617', // slate-950
+          backgroundImage: 'url("https://upload.wikimedia.org/wikipedia/en/thumb/e/e5/Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg/250px-Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg.png")',
+          backgroundSize: '400px',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundBlendMode: 'overlay'
+        }}
+      />
+      <div className="absolute inset-0 bg-slate-950/95 pointer-events-none z-0"></div>
+
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-sky-600/10 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -75,16 +87,17 @@ export default function LoginPage() {
         
         {/* Top Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 via-blue-600 to-indigo-600 flex items-center justify-center shadow-2xl shadow-sky-500/20 border border-sky-300/30">
-            <Plane className="w-7 h-7 text-white transform -rotate-45" />
+          <div className="w-16 h-16 rounded-2xl bg-white p-2 flex items-center justify-center shadow-2xl shadow-sky-500/20 border border-slate-700">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/en/thumb/e/e5/Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg/250px-Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail" 
+              alt="BAF Seal" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-wider">
               BANGLADESH AIR FORCE
             </h1>
-            <p className="text-xs text-sky-400 font-semibold tracking-wide">
-              Air Headquarters Directorate Inventory
-            </p>
           </div>
         </div>
 
@@ -125,7 +138,7 @@ export default function LoginPage() {
 
         {/* Footer info */}
         <div className="text-xs text-slate-500 font-medium">
-          © 2026 Air Headquarters — Information Technology Cell
+          © 2026 Air Headquarters — Dte CW&IT (Directorate of Cyber Warfare and Information Technology)
         </div>
 
       </div>

@@ -15,13 +15,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+    <div 
+      className="min-h-screen flex flex-col text-slate-100"
+      style={{
+        backgroundColor: '#020617', // slate-950
+        backgroundImage: 'url("https://upload.wikimedia.org/wikipedia/en/thumb/e/e5/Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg/250px-Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg.png")',
+        backgroundSize: '400px',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundBlendMode: 'overlay'
+      }}
+    >
+      <div className="absolute inset-0 bg-slate-950/95 pointer-events-none"></div>
+
       <Navbar />
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative z-10">
         <div className={`fixed left-0 top-16 bottom-0 z-40 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
           <Sidebar isCollapsed={!isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
         </div>
-        <main className={`flex-1 bg-slate-950 p-6 overflow-y-auto min-h-[calc(100vh-4rem)] transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+        <main className={`flex-1 p-6 overflow-y-auto min-h-[calc(100vh-4rem)] transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
           <div className="w-full space-y-6">
             {children}
           </div>

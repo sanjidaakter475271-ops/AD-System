@@ -41,8 +41,12 @@ export function Navbar({ onToggleSidebar, isSidebarOpen }: NavbarProps) {
           
           {/* Left Side: Brand Logo */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-sky-500/20 border border-sky-300/30">
-              <ShieldCheck className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shadow-md border border-slate-700">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/en/thumb/e/e5/Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg/250px-Seal_of_the_Bangladesh_Air_Force_%28BAF%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail" 
+                alt="BAF Seal" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
               <Link href="/dashboard" className="flex items-center gap-2 font-black text-base tracking-wide text-white hover:text-sky-300 transition-colors">
@@ -52,7 +56,7 @@ export function Navbar({ onToggleSidebar, isSidebarOpen }: NavbarProps) {
                 </span>
               </Link>
               <p className="text-[10px] text-slate-400 font-medium hidden sm:block leading-tight">
-                Active Directory &amp; Equipment Management System
+                BANGLADESH AIR FORCE
               </p>
             </div>
           </div>
