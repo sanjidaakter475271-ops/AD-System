@@ -17,9 +17,16 @@ import {
   ArrowLeftRight,
   ClipboardList,
   Cpu,
+  Menu,
+  X,
 } from 'lucide-react';
 
-export function Sidebar() {
+interface SidebarProps {
+  isCollapsed?: boolean;
+  onToggle?: () => void;
+}
+
+export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const user = session?.user as any;
@@ -65,15 +72,31 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 h-full bg-slate-900 text-slate-200 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-lg transform transition-transform duration-300 ease-in-out hover:shadow-2xl">
+    <aside className={`h-full bg-slate-900 text-slate-200 border-r border-slate-800 p-3 flex flex-col justify-between shrink-0 shadow-lg transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="space-y-6">
         
         {/* Navigation Sections */}
         {navItems.map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-2">
-            <h2 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase px-3">
-              {group.category}
-            </h2>
+            <div className="flex items-center justify-between px-3">
+              {!isCollapsed ? (
+                <h2 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  {group.category}
+                </h2>
+              ) : null}
+              {groupIdx === 0 && onToggle && (
+                <button
+                  onClick={onToggle}
+                  className={`p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 transition-all focus:outline-none ${
+                    isCollapsed ? 'mx-auto' : ''
+                  }`}
+                  title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                  aria-label="Toggle Sidebar"
+                >
+                  {isCollapsed ? <Menu className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                </button>
+              )}
+            </div>
             <nav className="space-y-1">
               {group.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -83,14 +106,17 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={isCollapsed ? item.label : undefined}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ease-in-out group ${
+                      isCollapsed ? 'justify-center' : ''
+                    } ${
                       isActive
                         ? 'bg-gradient-to-r from-sky-600/30 to-indigo-600/30 text-white border-l-4 border-sky-400 shadow-sm font-semibold'
                         : 'text-slate-300 hover:bg-slate-800/80 hover:text-white hover:translate-x-1'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 transition-transform duration-300 ease-in-out group-hover:scale-110 ${item.color}`} />
-                    <span>{item.label}</span>
+                    <Icon className={`w-5 h-5 shrink-0 transition-transform duration-300 ease-in-out group-hover:scale-110 ${item.color}`} />
+                    {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
               })}
@@ -102,14 +128,16 @@ export function Sidebar() {
 
       {/* Footer / User Session Card */}
       <div className="pt-4 border-t border-slate-800/80">
-        <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+        <div className={`p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+          <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 shrink-0">
             {isAdmin ? <ShieldCheck className="w-5 h-5 text-purple-400" /> : <Database className="w-5 h-5 text-indigo-400" />}
           </div>
-          <div>
-            <div className="text-xs font-semibold text-white capitalize">{user?.name || user?.username || 'Guest'}</div>
-            <div className="text-[11px] text-slate-400 capitalize">{user?.role ? `${user.role} Account` : 'Local Inventory DB'}</div>
-          </div>
+          {!isCollapsed && (
+            <div className="overflow-hidden">
+              <div className="text-xs font-semibold text-white capitalize truncate">{user?.name || user?.username || 'Guest'}</div>
+              <div className="text-[11px] text-slate-400 capitalize truncate">{user?.role ? `${user.role} Account` : 'Local Inventory DB'}</div>
+            </div>
+          )}
         </div>
       </div>
     </aside>

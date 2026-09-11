@@ -5,21 +5,25 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { 
-  Plane, 
+  ShieldCheck, 
   Search, 
   PlusCircle, 
   FileSpreadsheet, 
-  FileText, 
-  ShieldCheck, 
-  User,
   LogOut,
-  Users
+  Users,
+  Menu,
+  X
 } from 'lucide-react';
 
-export function Navbar() {
+interface NavbarProps {
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
+}
+
+export function Navbar({ onToggleSidebar, isSidebarOpen }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const user = session?.user as any;
   const isAdmin = user?.role === 'admin';
 
@@ -31,24 +35,24 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white border-b border-indigo-800/40 shadow-xl backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 bg-slate-900/95 text-white border-b border-slate-800 shadow-xl backdrop-blur-md">
+      <div className="w-full px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
           
-          {/* Logo & Brand Title */}
+          {/* Left Side: Brand Logo */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-400 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 border border-sky-300/30">
-              <Plane className="w-6 h-6 text-white transform -rotate-45" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-sky-500/20 border border-sky-300/30">
+              <ShieldCheck className="w-5 h-5 text-white" />
             </div>
             <div>
-              <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg tracking-wide text-white hover:text-sky-300 transition-colors">
-                AD & INVENTORY
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 font-medium">
+              <Link href="/dashboard" className="flex items-center gap-2 font-black text-base tracking-wide text-white hover:text-sky-300 transition-colors">
+                AD &amp; INVENTORY
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 font-bold">
                   v1.0
                 </span>
               </Link>
-              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Active Directory & Equipment Management System
+              <p className="text-[10px] text-slate-400 font-medium hidden sm:block leading-tight">
+                Active Directory &amp; Equipment Management System
               </p>
             </div>
           </div>

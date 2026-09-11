@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@layer base {
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f172a; /* Dark Slate 900 */
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155; /* Slate 700 */
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0ea5e9; /* Sky 500 */
+  }
+}
+
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

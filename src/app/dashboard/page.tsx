@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { KPICard } from '@/components/dashboard/KPICard';
+import { ADComplianceChart, BaseUnitChart } from '@/components/dashboard/DashboardCharts';
 import {
   Monitor,
   CheckCircle2,
@@ -9,7 +10,6 @@ import {
   Building2,
   Laptop,
   Plus,
-  FileSpreadsheet,
   ArrowRight,
   ShieldCheck,
   Server,
@@ -21,6 +21,9 @@ import {
   PackageOpen,
   Clock,
   Wrench,
+  Activity,
+  Layers,
+  Check,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -121,31 +124,57 @@ export default async function DashboardPage() {
     <div className="space-y-8">
 
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 p-8 border border-indigo-800/40 shadow-2xl">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" /> Active Directory &amp; Inventory Dashboard
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-950 p-8 border border-indigo-500/20 backdrop-blur-xl shadow-2xl shadow-indigo-950/50">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-bold mb-3 shadow-inner">
+              <Sparkles className="w-3.5 h-3.5" /> Active Directory &amp; Inventory Enterprise
+            </div>
+            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
+              Base / Unit &amp; AD System Overview
+            </h1>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+              Real-time equipment, AD compliance, Windows 10/11 eligibility tracking, and full lifecycle withdraw &amp; issue management.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-6">
+              <Link href="/equipment/new" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-sky-500/20 hover:scale-[1.02] transition-all">
+                <Plus className="w-4 h-4" /> Add Equipment
+              </Link>
+              <Link href="/withdraw-issue" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs backdrop-blur-md transition-all">
+                <ArrowLeftRight className="w-4 h-4" /> Withdraw &amp; Issue
+              </Link>
+              <Link href="/upgradation" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs backdrop-blur-md transition-all">
+                <Cpu className="w-4 h-4" /> Upgradation
+              </Link>
+            </div>
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Base / Unit &amp; AD System Overview
-          </h1>
-          <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-            Real-time equipment, AD status, Windows eligibility, and full withdraw &amp; issue management across all Base/Units.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 mt-5">
-            <Link href="/equipment/new" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition-all">
-              <Plus className="w-4 h-4" /> Add Equipment
-            </Link>
-            <Link href="/withdraw-issue" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-all">
-              <ArrowLeftRight className="w-4 h-4" /> Withdraw &amp; Issue
-            </Link>
-            <Link href="/upgradation" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all">
-              <Cpu className="w-4 h-4" /> Upgradation
-            </Link>
+
+          {/* Quick Metrics Widget replacing old skeleton placeholders */}
+          <div className="grid grid-cols-2 gap-3 min-w-[280px]">
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold">
+                <span>System Health</span>
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-black text-emerald-400">{svcPct}%</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Serviceable Assets</span>
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold">
+                <span>AD Joined</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-black text-sky-400">{adJoinedPct}%</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Compliance Rate</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="absolute right-6 top-1/2 -translate-y-1/2 hidden lg:block opacity-20 pointer-events-none">
-          <Server className="w-64 h-64 text-sky-400" />
+        <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none">
+          <Server className="w-80 h-80 text-sky-400 translate-x-12 translate-y-12" />
         </div>
       </div>
 
@@ -158,36 +187,82 @@ export default async function DashboardPage() {
             value={stats.total}
             description={`${svcPct}% Serviceable`}
             icon={Monitor}
-            gradient="from-slate-900 to-indigo-950"
-            borderColor="border-indigo-800/60"
+            gradient="from-slate-900 via-indigo-950/60 to-slate-950"
+            borderColor="border-indigo-500/30"
             textColor="text-sky-400"
+            progress={svcPct}
+            progressColor="bg-sky-400"
+            badge="Live"
           />
           <KPICard
             title="Serviceable"
             value={stats.svc}
-            description={`U/S: ${stats.unsvc} | Repair: ${stats.repair} | R/S: ${stats.rs}`}
+            description={`U/S: ${stats.unsvc} | Repair: ${stats.repair}`}
             icon={CheckCircle2}
-            gradient="from-slate-900 to-emerald-950"
-            borderColor="border-emerald-800/60"
+            gradient="from-slate-900 via-emerald-950/60 to-slate-950"
+            borderColor="border-emerald-500/30"
             textColor="text-emerald-400"
+            progress={svcPct}
+            progressColor="bg-emerald-400"
           />
           <KPICard
             title="AD Joined"
             value={stats.adJoined}
             description={`${adJoinedPct}% Compliance | Pending: ${stats.adPending}`}
             icon={ShieldCheck}
-            gradient="from-slate-900 to-blue-950"
-            borderColor="border-blue-800/60"
+            gradient="from-slate-900 via-blue-950/60 to-slate-950"
+            borderColor="border-blue-500/30"
             textColor="text-blue-400"
+            progress={adJoinedPct}
+            progressColor="bg-blue-400"
           />
           <KPICard
             title="Win 10 Not Eligible"
             value={stats.win10NotEligible}
             description={`Eligible: ${stats.win10} | Win11 Rec: ${stats.win11Rec}`}
             icon={AlertTriangle}
-            gradient="from-slate-900 to-rose-950"
-            borderColor="border-rose-800/60"
+            gradient="from-slate-900 via-rose-950/60 to-slate-950"
+            borderColor="border-rose-500/30"
             textColor="text-rose-400"
+          />
+        </div>
+      </div>
+
+      {/* ── Visual Analytics Section (Charts) ────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* AD Compliance Chart */}
+        <div className="bg-slate-900/90 border border-slate-800/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-sky-400" /> Active Directory Compliance Breakdown
+            </h2>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+              AD Distribution
+            </span>
+          </div>
+          <ADComplianceChart
+            total={stats.total}
+            data={[
+              { name: 'AD Joined', value: stats.adJoined, color: '#38bdf8' },
+              { name: 'Not Joined', value: stats.adNotJoined, color: '#f43f5e' },
+              { name: 'Pending AD', value: stats.adPending, color: '#f59e0b' },
+            ]}
+          />
+        </div>
+
+        {/* Base/Unit Equipment Distribution */}
+        <div className="bg-slate-900/90 border border-slate-800/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Layers className="w-4 h-4 text-purple-400" /> Top Base / Unit Distribution
+            </h2>
+            <Link href="/equipment" className="text-xs text-sky-400 hover:underline flex items-center gap-1">
+              View All <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <BaseUnitChart
+            total={stats.total}
+            data={stats.byBaseUnit}
           />
         </div>
       </div>
@@ -255,15 +330,15 @@ export default async function DashboardPage() {
               stats.byDirectorate.map((item: any) => {
                 const pct = stats.total > 0 ? Math.round((item.count / stats.total) * 100) : 0;
                 return (
-                  <div key={item.name} className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-300">{item.name}</span>
-                      <span className="text-sky-400 font-bold">{item.count} ({pct}%)</span>
+                    <div key={item.name} className="space-y-1 group cursor-default">
+                      <div className="flex justify-between text-xs font-medium transition-colors group-hover:text-sky-300">
+                        <span className="text-slate-300">{item.name}</span>
+                        <span className="text-sky-400 font-bold">{item.count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-500 group-hover:scale-x-105" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
                 );
               })
             )}
