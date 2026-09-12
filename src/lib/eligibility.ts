@@ -9,6 +9,11 @@ export function calcWin10(
   const isGen6or7 = generation !== null && generation >= 6 && generation <= 7;
   const hasEnoughRam = ram !== null && ram >= 8;
 
+  // New Logic: 6th gen er nicher kichu eligible hobe na, RAM jai thakuk.
+  if (generation !== null && generation < 6) {
+    return "Not Eligible";
+  }
+
   if ((isSeries && isGen6or7) || hasEnoughRam) return "Eligible";
   return "Not Eligible";
 }

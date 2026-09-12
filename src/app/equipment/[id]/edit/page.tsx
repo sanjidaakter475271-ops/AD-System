@@ -487,42 +487,9 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
 
-        {/* Section 2: Active Directory Status & Remarks */}
-        <div className="p-4 rounded-xl bg-slate-800/80 border border-indigo-500/30 space-y-4">
-          <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
-            <Building className="w-4 h-4 text-indigo-400" />
-            Active Directory (AD) Status & Verification
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">AD Status *</label>
-              <select
-                value={formData.adStatus}
-                onChange={(e) => setFormData({ ...formData, adStatus: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {AD_STATUS_OPTIONS.map((st) => (
-                  <option key={st} value={st}>{st} ({st === 'Joined' ? 'Active Directory Joined' : st === 'Not Joined' ? 'Not Joined AD' : 'Pending Verification'})</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">AD Remarks / Problem (Why AD not done?)</label>
-              <input
-                type="text"
-                placeholder="e.g. Network IP pending, Domain user not created..."
-                value={formData.adRemark}
-                onChange={(e) => setFormData({ ...formData, adRemark: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-        </div>
-
         <div>
           <h2 className="text-sm font-bold text-sky-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
-            3. Hardware Specifications
+            2. Hardware Specifications
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -610,7 +577,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/80 border border-slate-800">
               <span className="text-xs text-slate-300">Windows 10 Status:</span>
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                win10Eligible.includes('Eligible') 
+                win10Eligible === 'Eligible' 
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                   : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
               }`}>
@@ -620,9 +587,9 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/80 border border-slate-800">
               <span className="text-xs text-slate-300">Windows 11 Status:</span>
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                win11Eligible.includes('Recommended') 
+                win11Eligible.startsWith('Recommended') 
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold'
-                  : win11Eligible.includes('Eligible') 
+                  : win11Eligible === 'Eligible' 
                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
                     : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
               }`}>
@@ -631,6 +598,41 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </div>
+
+        {/* Section 3: Active Directory Status & Remarks (Conditional on Win 10 or Win 11 eligibility) */}
+        {(win10Eligible === 'Eligible' || win11Eligible === 'Eligible' || win11Eligible.startsWith('Recommended')) && (
+          <div className="p-4 rounded-xl bg-slate-800/80 border border-indigo-500/30 space-y-4">
+            <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+              <Building className="w-4 h-4 text-indigo-400" />
+              3. Active Directory (AD) Status & Verification
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">AD Status *</label>
+                <select
+                  value={formData.adStatus}
+                  onChange={(e) => setFormData({ ...formData, adStatus: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {AD_STATUS_OPTIONS.map((st) => (
+                    <option key={st} value={st}>{st} ({st === 'Joined' ? 'Active Directory Joined' : st === 'Not Joined' ? 'Not Joined AD' : 'Pending Verification'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">AD Remarks / Problem (Why AD not done?)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Network IP pending, Domain user not created..."
+                  value={formData.adRemark}
+                  onChange={(e) => setFormData({ ...formData, adRemark: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
           <h2 className="text-sm font-bold text-sky-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">

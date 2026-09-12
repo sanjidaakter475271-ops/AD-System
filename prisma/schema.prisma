@@ -98,10 +98,21 @@ model IssueRecord {
   replacedEquipment   Equipment? @relation("ReplacedEquipment", fields: [replacedEquipmentId], references: [id])
 
   withdrawalRecord    WithdrawalRecord?
-
   createdAt           DateTime  @default(now()) @map("created_at")
 
   @@map("issue_records")
+}
+
+model WithdrawalBatch {
+  id              Int                @id @default(sequence())
+  letterRef       String             @map("letter_ref")
+  letterAuthority String             @map("letter_authority")
+  withdrawnBy     String?            @map("withdrawn_by")
+  reason          String?
+  withdrawnAt     DateTime           @default(now()) @map("withdrawn_at")
+  items           WithdrawalRecord[]
+
+  @@map("withdrawal_batches")
 }
 
 model WithdrawalRecord {
@@ -117,6 +128,9 @@ model WithdrawalRecord {
 
   issueRecordId   Int?         @unique @map("issue_record_id")
   issueRecord     IssueRecord? @relation(fields: [issueRecordId], references: [id])
+
+  batchId         Int?         @map("batch_id")
+  batch           WithdrawalBatch? @relation(fields: [batchId], references: [id])
 
   upgradation     UpgradationRecord?
 

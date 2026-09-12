@@ -27,12 +27,12 @@ export async function POST(request: Request) {
 
     const equipmentIds = records.map(r => r.equipmentId);
 
-    // Update equipment issueStatus to "Withdrawn" (Old PC Stock / Store)
+    // Update equipment issueStatus to "Withdrawn"
+    // Do NOT change directorate and location - keep them as they are to know where it was withdrawn from
     await prisma.equipment.updateMany({
       where: { id: { in: equipmentIds } },
       data: { 
         issueStatus: 'Withdrawn',
-        location: 'Old PC Store',
       },
     });
 

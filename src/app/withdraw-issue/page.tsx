@@ -5,7 +5,7 @@ import {
   ArrowLeftRight, PackageOpen, PackageMinus, Building,
   RefreshCw, AlertTriangle, CheckCircle2, Send, X,
   FileText, ShieldCheck, ChevronRight, Monitor,
-  Clock, Layers, Info, Users,
+  Clock, Layers, Info, Users, Plus, Trash2, Copy
 } from 'lucide-react';
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
 
@@ -29,14 +29,20 @@ type Withdrawal = {
   issueRecord?: any; upgradation?: any;
 };
 
-// ─── Issue Details Panel (right side drawer) ──────────────────────────────────
-function IssueDetailPanel({
-  pc,
-  onClose,
-}: {
-  pc: PC;
-  onClose: () => void;
-}) {
+type BulkIssueItem = {
+  id: string;
+  newPcId: string;
+  issuedTo: string;       // Section name
+  issuedOffice: string;
+  issuedBase: string;
+  issueMode: 'without-replace' | 'replace-old';
+  oldPcId: string;
+  withdrawnBy: string;
+  withdrawalReason: string;
+};
+
+// ─── Issue Details Panel ──────────────────────────────────────────────────────
+function IssueDetailPanel({ pc, onClose }: { pc: PC; onClose: () => void }) {
   const lastIssue = pc.issueRecords?.[0];
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -51,7 +57,6 @@ function IssueDetailPanel({
           </button>
         </div>
 
-        {/* Old PC info */}
         <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-2">
           <p className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Old PC (Replaced)</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -67,7 +72,6 @@ function IssueDetailPanel({
           </div>
         </div>
 
-        {/* Issue info */}
         {lastIssue ? (
           <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-4 space-y-2">
             <p className="text-[11px] font-bold text-sky-400 uppercase tracking-wide">Issue Record</p>
@@ -96,7 +100,7 @@ function IssueDetailPanel({
   );
 }
 
-// ─── New PC Side Panel (replacement picker) ────────────────────────────────────
+// ─── Single New PC Side Panel ────────────────────────────────────────────────
 function NewPcPanel({
   oldPc,
   newPcs,
@@ -110,7 +114,7 @@ function NewPcPanel({
 }) {
   const [step, setStep] = useState<'pick' | 'form'>('pick');
   const [selectedNewPc, setSelectedNewPc] = useState<PC | null>(null);
-  const [section, setSection] = useState('');          // Which section/place (e.g. "CO Room", "IT Section")
+  const [section, setSection] = useState('');
   const [issuedOffice, setIssuedOffice] = useState(oldPc.directorate);
   const [issuedBase, setIssuedBase] = useState(oldPc.baseUnit);
   const [letterRef, setLetterRef] = useState('');
@@ -120,11 +124,9 @@ function NewPcPanel({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Preview: how many PCs already in this section
   const [sectionPcCount, setSectionPcCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(false);
 
-  // Fetch count of active PCs in this section
   useEffect(() => {
     if (!section.trim() || !issuedOffice || !issuedBase) {
       setSectionPcCount(null);
@@ -141,7 +143,6 @@ function NewPcPanel({
 
   const nextPcLabel = sectionPcCount !== null ? `PC-${sectionPcCount + 1}` : null;
 
-  // Filter: new PCs intended for same office or same base
   const sameOffice = newPcs.filter(p => p.intendedOffice === oldPc.directorate && p.intendedBase === oldPc.baseUnit);
   const sameBase = newPcs.filter(p => p.intendedBase === oldPc.baseUnit && p.intendedOffice !== oldPc.directorate);
   const otherPcs = newPcs.filter(p => !p.intendedBase || (p.intendedBase !== oldPc.baseUnit));
@@ -195,8 +196,6 @@ function NewPcPanel({
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-50 w-full max-w-md bg-slate-900 border-l border-slate-700 h-full overflow-y-auto shadow-2xl flex flex-col">
-
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -212,7 +211,6 @@ function NewPcPanel({
           </button>
         </div>
 
-        {/* Step 1: Pick new PC */}
         {step === 'pick' && (
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {newPcs.length === 0 ? (
@@ -252,22 +250,18 @@ function NewPcPanel({
           </div>
         )}
 
-        {/* Step 2: Issue form */}
         {step === 'form' && selectedNewPc && (
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
-            {/* Back */}
             <button type="button" onClick={() => setStep('pick')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1">
               ← Back to PC list
             </button>
 
-            {/* Selected new PC summary */}
             <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-3 space-y-1">
               <p className="text-[10px] font-bold text-sky-400 uppercase">New PC to Issue</p>
               <p className="text-xs font-bold text-white">SN #{selectedNewPc.sn} | {selectedNewPc.equipmentType} | {selectedNewPc.brandModel || 'N/A'}</p>
               <p className="text-[10px] text-slate-400">{selectedNewPc.processor} ({selectedNewPc.generation}th) | {selectedNewPc.ramGb}GB | {selectedNewPc.storageType}</p>
             </div>
 
-            {/* Section (Issued To) */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-1">
                 <Users className="w-3 h-3 text-sky-400" /> Section / Issued To *
@@ -280,7 +274,6 @@ function NewPcPanel({
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
               />
-              {/* Preview next PC label */}
               {section.trim() && (
                 <div className="flex items-center gap-2 mt-1">
                   {loadingCount ? (
@@ -294,21 +287,19 @@ function NewPcPanel({
               )}
             </div>
 
-            {/* Office & Base */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Office *</label>
                 <input type="text" value={issuedOffice} onChange={e => setIssuedOffice(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" required />
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500" required />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Base *</label>
                 <input type="text" value={issuedBase} onChange={e => setIssuedBase(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" required />
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500" required />
               </div>
             </div>
 
-            {/* Letter */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-1">
@@ -316,7 +307,7 @@ function NewPcPanel({
                 </label>
                 <input type="text" value={letterRef} onChange={e => setLetterRef(e.target.value)}
                   placeholder="AHQ/AD/1234/2026"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-1">
@@ -324,11 +315,10 @@ function NewPcPanel({
                 </label>
                 <input type="text" value={letterAuthority} onChange={e => setLetterAuthority(e.target.value)}
                   placeholder="Air Cdre Md. Kamal"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
               </div>
             </div>
 
-            {/* Withdrawal details optional note */}
             <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-800/40 text-[11px] text-amber-300">
               Note: Old PC (SN #{oldPc.sn}) will be marked as replaced and moved to Withdrawal tab for batch processing.
             </div>
@@ -352,7 +342,7 @@ function NewPcPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function WithdrawIssuePage() {
-  const [activeTab, setActiveTab] = useState<'inventory' | 'withdrawal'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'withdrawal' | 'bulk-issue'>('inventory');
 
   // Inventory tab
   const [inventory, setInventory] = useState<PC[]>([]);
@@ -361,32 +351,56 @@ export default function WithdrawIssuePage() {
   const [filterOffice, setFilterOffice] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'not-issued' | 'issued'>('all');
 
-  // New PCs for replacement
+  // Available new PCs for replacement
   const [newPcs, setNewPcs] = useState<PC[]>([]);
 
   // Panels
-  const [issuePanel, setIssuePanel] = useState<PC | null>(null);    // open NewPcPanel for this old PC
-  const [detailPanel, setDetailPanel] = useState<PC | null>(null);  // open IssueDetailPanel
+  const [issuePanel, setIssuePanel] = useState<PC | null>(null);
+  const [detailPanel, setDetailPanel] = useState<PC | null>(null);
 
   // Withdrawal tab
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [wdLoading, setWdLoading] = useState(true);
   const [wdFilterBase, setWdFilterBase] = useState('');
   const [wdFilterOffice, setWdFilterOffice] = useState('');
+  const [selectedWdIds, setSelectedWdIds] = useState<number[]>([]);
+
+  // ---------------------------------------------------------------------------
+  // Bulk Issue Tab State
+  // ---------------------------------------------------------------------------
+  const [bulkLetterRef, setBulkLetterRef] = useState('');
+  const [bulkLetterAuthority, setBulkLetterAuthority] = useState('');
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+  const [bulkSuccess, setBulkSuccess] = useState('');
+
+  const createDefaultBulkItem = (overrides?: Partial<BulkIssueItem>): BulkIssueItem => ({
+    id: Math.random().toString(36).substring(2, 9),
+    newPcId: '',
+    issuedTo: '',
+    issuedOffice: DIRECTORATES[0],
+    issuedBase: 'Air HQ',
+    issueMode: 'without-replace',
+    oldPcId: '',
+    withdrawnBy: '',
+    withdrawalReason: 'Replaced with new PC (Not Eligible)',
+    ...overrides,
+  });
+
+  const [bulkItems, setBulkItems] = useState<BulkIssueItem[]>([
+    createDefaultBulkItem({ issuedOffice: 'Dte AD', issuedBase: 'Air HQ' }),
+    createDefaultBulkItem({ issuedOffice: 'Dte Plan', issuedBase: 'Air HQ' }),
+  ]);
 
   const [customBaseUnits, setCustomBaseUnits] = useState<any[]>([]);
 
   const allBaseUnits = Array.from(new Set([...BASE_UNITS, ...customBaseUnits.map(b => b.name)]));
 
-  const activeBaseObj = customBaseUnits.find(b => b.name === filterBase);
-  const offices = activeBaseObj?.offices?.length > 0
-    ? activeBaseObj.offices.map((o: any) => o.name)
-    : (filterBase === 'Air HQ' || !filterBase) ? DIRECTORATES : [];
-
-  const wdBaseObj = customBaseUnits.find(b => b.name === wdFilterBase);
-  const wdOffices = wdBaseObj?.offices?.length > 0
-    ? wdBaseObj.offices.map((o: any) => o.name)
-    : (wdFilterBase === 'Air HQ' || !wdFilterBase) ? DIRECTORATES : [];
+  const getOfficesForBase = (baseName: string) => {
+    const bObj = customBaseUnits.find(b => b.name === baseName);
+    if (bObj?.offices && bObj.offices.length > 0) return bObj.offices.map((o: any) => o.name);
+    return baseName === 'Air HQ' || !baseName ? DIRECTORATES : ['General Office', 'Admin Branch', 'Signal Section'];
+  };
 
   const fetchInventory = useCallback(async () => {
     setInvLoading(true);
@@ -420,32 +434,11 @@ export default function WithdrawIssuePage() {
     } catch {} finally { setWdLoading(false); }
   }, [wdFilterBase, wdFilterOffice]);
 
-  // Selection for Batch Withdrawal
-  const [selectedWdIds, setSelectedWdIds] = useState<number[]>([]);
-
-  const toggleSelectAllWd = () => {
-    if (selectedWdIds.length === withdrawals.length) {
-      setSelectedWdIds([]);
-    } else {
-      setSelectedWdIds(withdrawals.map(w => w.id));
-    }
-  };
-
-  const toggleSelectWd = (id: number) => {
-    if (selectedWdIds.includes(id)) {
-      setSelectedWdIds(selectedWdIds.filter(i => i !== id));
-    } else {
-      setSelectedWdIds([...selectedWdIds, id]);
-    }
-  };
-
   useEffect(() => { fetch('/api/base-units').then(r => r.json()).then(setCustomBaseUnits).catch(() => {}); }, []);
   useEffect(() => { fetchInventory(); fetchNewPcs(); }, [fetchInventory, fetchNewPcs]);
   useEffect(() => { fetchWithdrawals(); }, [fetchWithdrawals]);
 
-  // Filtered inventory: NEVER show withdrawn PCs here
   const filteredInventory = inventory.filter(pc => {
-    // Exclude withdrawn PCs from inventory view
     if (pc.issueStatus === 'Withdrawn & Issued' || pc.issueStatus === 'Withdrawn') return false;
     if (filterStatus === 'not-issued') return !pc.issueStatus || pc.issueStatus === 'Not Issued';
     if (filterStatus === 'issued') return pc.issueStatus === 'Issued';
@@ -454,7 +447,6 @@ export default function WithdrawIssuePage() {
 
   const countNotIssued = inventory.filter(p => !p.issueStatus || p.issueStatus === 'Not Issued').length;
   const countIssued = inventory.filter(p => p.issueStatus === 'Issued').length;
-  // withdrawn PCs are NOT counted in inventory sub-tabs
 
   const handleProcessBatchWithdrawal = async () => {
     if (selectedWdIds.length === 0) return;
@@ -474,6 +466,132 @@ export default function WithdrawIssuePage() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Bulk Issue Handlers
+  // ---------------------------------------------------------------------------
+  const updateBulkItem = (id: string, updates: Partial<BulkIssueItem>) => {
+    setBulkItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const updated = { ...item, ...updates };
+
+      // When New PC is selected, auto-fill intendedBase & intendedOffice and match old PC
+      if (updates.newPcId && updates.newPcId !== item.newPcId) {
+        const newPcIdStr = updates.newPcId.toString();
+        const selectedPc = newPcs.find(p => p.id.toString() === newPcIdStr);
+        if (selectedPc) {
+          if (selectedPc.intendedBase) updated.issuedBase = selectedPc.intendedBase;
+          if (selectedPc.intendedOffice) updated.issuedOffice = selectedPc.intendedOffice;
+
+          // Find matching not-eligible old PC in that office/base
+          const matchedOldPc = inventory.find(
+            p => p.baseUnit === (updated.issuedBase) &&
+                 p.directorate === (updated.issuedOffice) &&
+                 (p.issueStatus === 'Not Issued' || !p.issueStatus)
+          ) || inventory.find(
+            p => p.baseUnit === (updated.issuedBase) &&
+                 (p.issueStatus === 'Not Issued' || !p.issueStatus)
+          );
+
+          if (matchedOldPc) {
+            updated.issueMode = 'replace-old';
+            updated.oldPcId = matchedOldPc.id.toString();
+            if (matchedOldPc.location) updated.issuedTo = matchedOldPc.location;
+          }
+        }
+      }
+
+      // Auto-match old PC when office or mode changes
+      if (updated.issueMode === 'replace-old' && !updated.oldPcId) {
+        const matchedOldPc = inventory.find(
+          p => p.baseUnit === updated.issuedBase &&
+               p.directorate === updated.issuedOffice &&
+               (p.issueStatus === 'Not Issued' || !p.issueStatus)
+        );
+        if (matchedOldPc) {
+          updated.oldPcId = matchedOldPc.id.toString();
+          if (matchedOldPc.location && !updated.issuedTo) updated.issuedTo = matchedOldPc.location;
+        }
+      }
+
+      return updated;
+    }));
+  };
+
+  const addBulkItem = () => {
+    const lastItem = bulkItems[bulkItems.length - 1];
+    setBulkItems(prev => [...prev, createDefaultBulkItem(lastItem ? {
+      issuedBase: lastItem.issuedBase,
+      issuedOffice: lastItem.issuedOffice,
+      issueMode: lastItem.issueMode,
+    } : undefined)]);
+  };
+
+  const duplicateBulkItem = (index: number) => {
+    const itemToCopy = bulkItems[index];
+    const newItem = createDefaultBulkItem({
+      ...itemToCopy,
+      id: Math.random().toString(36).substring(2, 9),
+      newPcId: '',
+      oldPcId: '',
+    });
+    const updated = [...bulkItems];
+    updated.splice(index + 1, 0, newItem);
+    setBulkItems(updated);
+  };
+
+  const deleteBulkItem = (index: number) => {
+    if (bulkItems.length === 1) {
+      alert('Keep at least 1 item for bulk issue');
+      return;
+    }
+    setBulkItems(bulkItems.filter((_, i) => i !== index));
+  };
+
+  const handleBulkIssueSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBulkSubmitting(true); setBulkError(''); setBulkSuccess('');
+
+    try {
+      const payload = bulkItems.map((item, idx) => ({
+        newPcId: parseInt(item.newPcId),
+        issuedTo: item.issuedTo,
+        issuedOffice: item.issuedOffice,
+        issuedBase: item.issuedBase,
+        issueMode: item.issueMode,
+        oldPcId: item.issueMode === 'replace-old' && item.oldPcId ? parseInt(item.oldPcId) : undefined,
+        withdrawnBy: item.withdrawnBy || undefined,
+        withdrawalReason: item.withdrawalReason || undefined,
+      }));
+
+      const res = await fetch('/api/withdraw-issue/bulk-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          letterRef: bulkLetterRef || undefined,
+          letterAuthority: bulkLetterAuthority || undefined,
+          items: payload,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to submit bulk issue');
+      }
+
+      const resData = await res.json();
+      setBulkSuccess(`${resData.count} Equipment(s) issued successfully under letter auth!`);
+      fetchInventory(); fetchNewPcs(); fetchWithdrawals();
+      setTimeout(() => {
+        setActiveTab('inventory');
+        setFilterStatus('issued');
+      }, 1200);
+    } catch (err: any) {
+      setBulkError(err.message || 'Something went wrong');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const statusBadge = (issueStatus?: string) => {
     if (issueStatus === 'Issued') return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Issued</span>;
     return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300 border border-slate-600">Not Issued</span>;
@@ -487,7 +605,7 @@ export default function WithdrawIssuePage() {
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <ArrowLeftRight className="w-6 h-6 text-amber-400" /> Withdraw &amp; Issue
           </h1>
-          <p className="text-sm text-slate-400">Manage not-eligible PC inventory, issues and withdrawals</p>
+          <p className="text-sm text-slate-400">Manage not-eligible PC inventory, single/bulk issues and withdrawals</p>
         </div>
       </div>
 
@@ -500,6 +618,7 @@ export default function WithdrawIssuePage() {
           <Monitor className="w-4 h-4" /> Inventory
           <span className="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold">{countNotIssued + countIssued}</span>
         </button>
+
         <button onClick={() => setActiveTab('withdrawal')}
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all ${
             activeTab === 'withdrawal' ? 'bg-amber-600/15 border border-b-0 border-amber-500/40 text-amber-300' : 'text-slate-400 hover:text-white'
@@ -507,30 +626,36 @@ export default function WithdrawIssuePage() {
           <PackageMinus className="w-4 h-4" /> Withdrawal
           <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold">{withdrawals.length}</span>
         </button>
+
+        <button onClick={() => setActiveTab('bulk-issue')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all ${
+            activeTab === 'bulk-issue' ? 'bg-indigo-600/15 border border-b-0 border-indigo-500/40 text-indigo-300' : 'text-slate-400 hover:text-white'
+          }`}>
+          <Layers className="w-4 h-4 text-indigo-400" /> Bulk Issue (Multi-Office)
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold">{newPcs.length} New PCs Available</span>
+        </button>
       </div>
 
       {/* ── INVENTORY TAB ─────────────────────────────────────────────────── */}
       {activeTab === 'inventory' && (
         <div className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-wrap gap-3 items-center">
             <select value={filterBase} onChange={e => { setFilterBase(e.target.value); setFilterOffice(''); }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
               <option value="">All Base / Units</option>
               {allBaseUnits.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
             <select value={filterOffice} onChange={e => setFilterOffice(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
               <option value="">All Offices</option>
-              {offices.map((o: string) => <option key={o} value={o}>{o}</option>)}
+              {getOfficesForBase(filterBase).map((o: string) => <option key={o} value={o}>{o}</option>)}
             </select>
             <button onClick={() => { fetchInventory(); fetchNewPcs(); }}
-              className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Refresh">
+              className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white" title="Refresh">
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Status sub-tabs — no "withdrawn" here, they're in records */}
           <div className="flex gap-2">
             {[
               { key: 'all', label: 'All', count: countNotIssued + countIssued, color: 'slate' },
@@ -540,21 +665,18 @@ export default function WithdrawIssuePage() {
               <button key={tab.key} onClick={() => setFilterStatus(tab.key as any)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                   filterStatus === tab.key
-                    ? tab.color === 'emerald' ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300'
-                    : 'bg-slate-700 border-slate-600 text-white'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
+                    ? tab.color === 'emerald' ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300' : 'bg-slate-700 border-slate-600 text-white'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'
                 }`}>
-                {tab.label}
-                <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-bold">{tab.count}</span>
+                {tab.label} <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-bold">{tab.count}</span>
               </button>
             ))}
           </div>
 
-          {/* Table */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800 bg-rose-500/5">
               <AlertTriangle className="w-4 h-4 text-rose-400" />
-              <span className="text-xs font-bold text-rose-300 uppercase tracking-wide">Not Eligible PCs — Inventory</span>
+              <span className="text-xs font-bold text-rose-300 uppercase">Not Eligible PCs — Inventory</span>
               {newPcs.length > 0 && (
                 <span className="ml-auto text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" /> {newPcs.length} new PC{newPcs.length > 1 ? 's' : ''} available for replacement
@@ -563,15 +685,11 @@ export default function WithdrawIssuePage() {
             </div>
 
             {invLoading ? (
-              <div className="p-10 text-center text-slate-400">
-                <div className="animate-spin w-7 h-7 border-4 border-sky-500 border-t-transparent rounded-full mx-auto mb-2" />
-                Loading...
-              </div>
+              <div className="p-10 text-center text-slate-400">Loading...</div>
             ) : filteredInventory.length === 0 ? (
               <div className="p-10 text-center text-slate-400 space-y-2">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
                 <p className="text-sm font-semibold text-slate-300">No PCs found</p>
-                <p className="text-xs text-slate-500">Try changing the filter. Withdrawn PCs are visible in Records page.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -580,7 +698,7 @@ export default function WithdrawIssuePage() {
                     <tr>
                       <th className="p-3.5">SN</th>
                       <th className="p-3.5">Office / Base</th>
-                      <th className="p-3.5">Section / Location</th>
+                      <th className="p-3.5">Section</th>
                       <th className="p-3.5">Type</th>
                       <th className="p-3.5">Brand / Serial</th>
                       <th className="p-3.5">Specs</th>
@@ -591,52 +709,38 @@ export default function WithdrawIssuePage() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
                     {filteredInventory.map(item => (
-                      <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                      <tr key={item.id} className="hover:bg-slate-800/40">
                         <td className="p-3.5 font-bold text-rose-400">#{item.sn}</td>
                         <td className="p-3.5">
                           <div className="font-semibold text-white">{item.directorate}</div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <Building className="w-3 h-3 text-slate-500" /> {item.baseUnit}
-                          </div>
+                          <div className="text-[10px] text-slate-400">{item.baseUnit}</div>
                         </td>
                         <td className="p-3.5">
-                          <div className="text-slate-200 font-medium">{item.location || '—'}</div>
-                          {/* Show PC label from latest issue record */}
+                          <div className="text-slate-200">{item.location || '—'}</div>
                           {item.issueRecords?.[0]?.sectionLabel && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold border border-sky-500/30">
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">
                               {item.issueRecords[0].sectionLabel}
                             </span>
                           )}
                         </td>
                         <td className="p-3.5 text-indigo-300 font-semibold">{item.equipmentType}</td>
                         <td className="p-3.5">
-                          <div className="text-slate-200">{item.brandModel || '—'}</div>
+                          <div>{item.brandModel || '—'}</div>
                           <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
                         </td>
                         <td className="p-3.5 text-slate-300">
                           <div>{item.processor ? `${item.processor} (${item.generation}th)` : '—'}</div>
                           <div className="text-[10px] text-slate-400">{item.ramGb ? `${item.ramGb}GB` : ''} {item.storageType ? `| ${item.storageType}` : ''}</div>
                         </td>
-                        <td className="p-3.5">
-                          <span className="text-rose-400 font-bold text-[10px]">{item.win10Eligible || 'N/A'}</span>
-                          <div className="text-[10px] text-slate-400">W11: {item.win11Eligible || 'N/A'}</div>
-                        </td>
+                        <td className="p-3.5"><span className="text-rose-400 font-bold text-[10px]">{item.win10Eligible || 'N/A'}</span></td>
                         <td className="p-3.5">{statusBadge(item.issueStatus)}</td>
                         <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Detail button — only for issued */}
                             {item.issueStatus === 'Issued' && (
-                              <button onClick={() => setDetailPanel(item)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 text-[11px] font-bold transition-all">
-                                <Info className="w-3 h-3" /> Details
-                              </button>
+                              <button onClick={() => setDetailPanel(item)} className="px-2.5 py-1.5 rounded-xl bg-purple-600/20 text-purple-300 text-[11px] font-bold">Details</button>
                             )}
-                            {/* Issue button — only for not-issued */}
                             {(!item.issueStatus || item.issueStatus === 'Not Issued') && (
-                              <button onClick={() => setIssuePanel(item)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/40 border border-sky-500/40 text-sky-300 text-[11px] font-bold transition-all">
-                                <Send className="w-3 h-3" /> Issue
-                              </button>
+                              <button onClick={() => setIssuePanel(item)} className="px-2.5 py-1.5 rounded-xl bg-sky-600/20 text-sky-300 text-[11px] font-bold">Issue</button>
                             )}
                           </div>
                         </td>
@@ -654,143 +758,299 @@ export default function WithdrawIssuePage() {
       {activeTab === 'withdrawal' && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={wdFilterBase} onChange={e => { setWdFilterBase(e.target.value); setWdFilterOffice(''); }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <select value={wdFilterBase} onChange={e => { setWdFilterBase(e.target.value); setWdFilterOffice(''); }} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
               <option value="">All Base / Units</option>
               {allBaseUnits.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
-            <select value={wdFilterOffice} onChange={e => setWdFilterOffice(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <select value={wdFilterOffice} onChange={e => setWdFilterOffice(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
               <option value="">All Offices</option>
-              {wdOffices.map((o: string) => <option key={o} value={o}>{o}</option>)}
+              {getOfficesForBase(wdFilterBase).map((o: string) => <option key={o} value={o}>{o}</option>)}
             </select>
-            <button onClick={fetchWithdrawals}
-              className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            <button onClick={fetchWithdrawals} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300"><RefreshCw className="w-4 h-4" /></button>
           </div>
 
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-amber-500/5">
               <div className="flex items-center gap-2">
                 <PackageMinus className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">Withdrawn PCs Log</span>
+                <span className="text-xs font-bold text-amber-300 uppercase">Withdrawn PCs Log</span>
               </div>
               {selectedWdIds.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-amber-300 font-semibold">{selectedWdIds.length} Selected</span>
-                  <button
-                    onClick={handleProcessBatchWithdrawal}
-                    className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-md">
-                    Process Batch Withdrawal
-                  </button>
-                </div>
+                <button onClick={handleProcessBatchWithdrawal} className="px-3 py-1 rounded-xl bg-amber-600 text-white text-xs font-bold">Process Batch Withdrawal</button>
               )}
             </div>
 
-            {wdLoading ? (
-              <div className="p-10 text-center text-slate-400">
-                <div className="animate-spin w-7 h-7 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-2" />
-                Loading...
-              </div>
-            ) : withdrawals.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 space-y-2">
-                <PackageMinus className="w-10 h-10 text-slate-600 mx-auto" />
-                <p className="text-sm font-semibold text-slate-300">No withdrawals found</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-200">
-                  <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                    <tr>
-                      <th className="p-3.5 w-8">
-                        <input
-                          type="checkbox"
-                          checked={withdrawals.length > 0 && selectedWdIds.length === withdrawals.length}
-                          onChange={toggleSelectAllWd}
-                          className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500"
-                        />
-                      </th>
-                      <th className="p-3.5">Old PC (SN)</th>
-                      <th className="p-3.5">Withdrawn From</th>
-                      <th className="p-3.5">New PC Issued</th>
-                      <th className="p-3.5">Withdrawn At</th>
-                      <th className="p-3.5">Withdrawn By</th>
-                      <th className="p-3.5">Reason</th>
-                      <th className="p-3.5">Upgradation</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-200">
+                <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                  <tr>
+                    <th className="p-3.5">Old PC (SN)</th>
+                    <th className="p-3.5">Withdrawn From</th>
+                    <th className="p-3.5">New PC Issued</th>
+                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {withdrawals.map(wd => (
+                    <tr key={wd.id} className="hover:bg-slate-800/40">
+                      <td className="p-3.5 font-bold text-amber-400">#{wd.equipment.sn}</td>
+                      <td className="p-3.5">{wd.withdrawnFrom} ({wd.withdrawnBase})</td>
+                      <td className="p-3.5">{wd.issueRecord?.equipment ? `SN #${wd.issueRecord.equipment.sn} (${wd.issueRecord.issuedTo})` : '—'}</td>
+                      <td className="p-3.5">{new Date(wd.withdrawnAt).toLocaleDateString('en-GB')}</td>
+                      <td className="p-3.5 text-slate-400">{wd.reason || '—'}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/80">
-                    {withdrawals.map(wd => (
-                      <tr key={wd.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="p-3.5">
-                          <input
-                            type="checkbox"
-                            checked={selectedWdIds.includes(wd.id)}
-                            onChange={() => toggleSelectWd(wd.id)}
-                            className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500"
-                          />
-                        </td>
-                        <td className="p-3.5">
-                          <div className="font-bold text-amber-400">#{wd.equipment.sn}</div>
-                          <div className="text-[10px] text-slate-400">{wd.equipment.equipmentType} | {wd.equipment.brandModel || 'N/A'}</div>
-                        </td>
-                        <td className="p-3.5">
-                          <div className="font-semibold text-white">{wd.withdrawnFrom}</div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <Building className="w-3 h-3 text-slate-500" /> {wd.withdrawnBase}
-                          </div>
-                        </td>
-                        <td className="p-3.5">
-                          {wd.issueRecord?.equipment ? (
-                            <div>
-                              <div className="text-sky-300 font-bold">SN #{wd.issueRecord.equipment.sn}</div>
-                              <div className="text-[10px] text-slate-400">Section: {wd.issueRecord.issuedTo}</div>
-                              {wd.issueRecord.sectionLabel && (
-                                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold border border-sky-500/30">
-                                  {wd.issueRecord.sectionLabel}
-                                </span>
-                              )}
-                            </div>
-                          ) : '—'}
-                        </td>
-                        <td className="p-3.5 text-slate-300 whitespace-nowrap">
-                          {new Date(wd.withdrawnAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </td>
-                        <td className="p-3.5 text-slate-300">{wd.withdrawnBy || '—'}</td>
-                        <td className="p-3.5 text-slate-400 max-w-[160px] truncate" title={wd.reason || ''}>{wd.reason || '—'}</td>
-                        <td className="p-3.5">
-                          {wd.upgradation ? (
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
-                              wd.upgradation.isDistributed ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                              : wd.upgradation.isUpgraded ? 'bg-sky-500/20 text-sky-400 border-sky-500/30'
-                              : 'bg-slate-700 text-slate-300 border-slate-600'
-                            }`}>
-                              {wd.upgradation.isDistributed ? '✓ Distributed' : wd.upgradation.isUpgraded ? '✓ Upgraded' : 'Pending'}
-                            </span>
-                          ) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Issue side panel */}
-      {issuePanel && (
-        <NewPcPanel
-          oldPc={issuePanel}
-          newPcs={newPcs}
-          onClose={() => setIssuePanel(null)}
-          onSuccess={() => { fetchInventory(); fetchNewPcs(); fetchWithdrawals(); setActiveTab('inventory'); setFilterStatus('issued'); }}
-        />
+      {/* ── BULK ISSUE TAB (NEW) ────────────────────────────────────────── */}
+      {activeTab === 'bulk-issue' && (
+        <form onSubmit={handleBulkIssueSubmit} className="space-y-6">
+          
+          {bulkError && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+              <span>{bulkError}</span>
+            </div>
+          )}
+
+          {bulkSuccess && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span>{bulkSuccess}</span>
+            </div>
+          )}
+
+          {/* Letter Info Card */}
+          <div className="bg-slate-900/90 border border-indigo-900/50 rounded-2xl p-5 shadow-xl space-y-4">
+            <h2 className="text-sm font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
+              <FileText className="w-4 h-4 text-amber-400" /> Letter Authorization (Single Letter for Bulk Issue)
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5 text-amber-400" /> Letter Reference *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. AHQ/AD/2050/2026"
+                  value={bulkLetterRef}
+                  onChange={(e) => setBulkLetterRef(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> Letter Authority *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Air Cdre Md. Kamal"
+                  value={bulkLetterAuthority}
+                  onChange={(e) => setBulkLetterAuthority(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bulk Issue Items Table / Form */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-sky-400" /> Bulk Issue Rows ({bulkItems.length})
+              </h2>
+              <button
+                type="button"
+                onClick={addBulkItem}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all"
+              >
+                <Plus className="w-4 h-4" /> Add Issue Row
+              </button>
+            </div>
+
+            {bulkItems.map((item, idx) => {
+              const currentOffices = getOfficesForBase(item.issuedBase);
+              const notEligibleFiltered = inventory.filter(
+                p => p.baseUnit === item.issuedBase && (p.issueStatus === 'Not Issued' || !p.issueStatus)
+              );
+
+              // Suggested sections in this office/base
+              const suggestedSections = Array.from(new Set(
+                notEligibleFiltered.map(p => p.location).filter(Boolean)
+              ));
+
+              const selectedNewPcObj = newPcs.find(p => p.id.toString() === item.newPcId.toString());
+
+              return (
+                <div key={item.id} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/50 px-2.5 py-0.5 rounded-full">
+                        Issue Item #{idx + 1}
+                      </span>
+                      {selectedNewPcObj && (
+                        <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Selected: SN #{selectedNewPcObj.sn} ({selectedNewPcObj.equipmentType})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => duplicateBulkItem(idx)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-indigo-400" /> Copy Row
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteBulkItem(idx)}
+                        className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    {/* Select New PC */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Select New PC *</label>
+                      <select
+                        value={item.newPcId}
+                        onChange={(e) => updateBulkItem(item.id, { newPcId: e.target.value })}
+                        className="w-full bg-slate-800 border border-sky-500/50 rounded-xl px-2.5 py-1.5 text-xs text-white focus:ring-2 focus:ring-sky-500"
+                        required
+                      >
+                        <option value="">-- Choose New PC --</option>
+                        {newPcs.map(p => (
+                          <option key={p.id} value={p.id}>
+                            SN #{p.sn} | {p.brandModel || p.equipmentType} | Intended: {p.intendedOffice || 'Any'} ({p.intendedBase || 'Air HQ'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Section / Issued To with Datalist Suggestions */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Section / Issued To *</label>
+                      <input
+                        type="text"
+                        list={`sections-${item.id}`}
+                        placeholder="e.g. Signal Section, CO Room..."
+                        value={item.issuedTo}
+                        onChange={(e) => updateBulkItem(item.id, { issuedTo: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500"
+                        required
+                      />
+                      <datalist id={`sections-${item.id}`}>
+                        {suggestedSections.map(sec => <option key={sec as string} value={sec as string} />)}
+                      </datalist>
+                    </div>
+
+                    {/* Target Base */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Target Base *</label>
+                      <select
+                        value={item.issuedBase}
+                        onChange={(e) => updateBulkItem(item.id, { issuedBase: e.target.value, issuedOffice: getOfficesForBase(e.target.value)[0] })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        required
+                      >
+                        {allBaseUnits.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Target Office */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Target Office *</label>
+                      <select
+                        value={item.issuedOffice}
+                        onChange={(e) => updateBulkItem(item.id, { issuedOffice: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        required
+                      >
+                        {currentOffices.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Issue Type */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-amber-400 mb-1">Issue Mode</label>
+                      <select
+                        value={item.issueMode}
+                        onChange={(e) => updateBulkItem(item.id, { issueMode: e.target.value as any })}
+                        className="w-full bg-slate-800 border border-amber-600/50 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                      >
+                        <option value="without-replace">Without Replace (Fresh Issue)</option>
+                        <option value="replace-old">Replace Old PC (Auto-Suggested)</option>
+                      </select>
+                    </div>
+
+                    {/* Select Old PC if replace */}
+                    {item.issueMode === 'replace-old' && (
+                      <div className="col-span-3 bg-amber-950/30 border border-amber-800/40 p-2.5 rounded-xl space-y-1">
+                        <label className="block text-[11px] font-bold uppercase text-amber-400">
+                          Auto-Suggested Old PC to Replace ({item.issuedOffice}) *
+                        </label>
+                        <select
+                          value={item.oldPcId}
+                          onChange={(e) => updateBulkItem(item.id, { oldPcId: e.target.value })}
+                          className="w-full bg-slate-800 border border-amber-600/50 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                          required={item.issueMode === 'replace-old'}
+                        >
+                          <option value="">-- Choose Not-Eligible Old PC --</option>
+                          {notEligibleFiltered.map(p => (
+                            <option key={p.id} value={p.id}>
+                              SN #{p.sn} | {p.directorate} ({p.location || 'No Sec'}) | {p.brandModel || p.equipmentType} | {p.processor ? `${p.processor} (${p.generation}th)` : 'N/A'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t border-slate-800 bg-slate-950/60 p-4 rounded-2xl">
+            <button
+              type="button"
+              onClick={addBulkItem}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs font-bold"
+            >
+              <Plus className="w-4 h-4 text-indigo-400" /> Add Another Issue Row
+            </button>
+
+            <button
+              type="submit"
+              disabled={bulkSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+              {bulkSubmitting ? 'Processing Bulk Issue...' : `Submit Bulk Issue (${bulkItems.length} PCs)`}
+            </button>
+          </div>
+
+        </form>
       )}
 
-      {/* Detail side panel */}
+      {/* Panels */}
+      {issuePanel && (
+        <NewPcPanel oldPc={issuePanel} newPcs={newPcs} onClose={() => setIssuePanel(null)} onSuccess={() => { fetchInventory(); fetchNewPcs(); fetchWithdrawals(); setActiveTab('inventory'); setFilterStatus('issued'); }} />
+      )}
       {detailPanel && (
         <IssueDetailPanel pc={detailPanel} onClose={() => setDetailPanel(null)} />
       )}

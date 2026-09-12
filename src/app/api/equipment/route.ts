@@ -95,11 +95,15 @@ export async function POST(request: Request) {
       sn = maxItem ? maxItem.sn + 1 : 1;
     }
 
+    const isNew = Boolean(body.isNewPc);
+
     const equipment = await prisma.equipment.create({
       data: {
         sn,
         baseUnit: assignedBaseUnit,
-        directorate: body.directorate || 'General',
+        directorate: isNew 
+          ? (body.intendedOffice || body.directorate || 'General') 
+          : (body.directorate || 'General'),
         equipmentType: body.equipmentType || 'Desktop',
         brandModel: body.brandModel || null,
         serialNo: body.serialNo || null,
@@ -109,12 +113,12 @@ export async function POST(request: Request) {
         ssdGb,
         hddGb,
         storageType,
-        status: body.status || 'Svc',
+        status: isNew ? 'Svc' : (body.status || 'Svc'),
         location: body.location || null,
-        issueStatus: body.issueStatus || 'Not Issued',
-        isNewPc: Boolean(body.isNewPc),
-        intendedOffice: body.isNewPc ? (body.intendedOffice || null) : null,
-        intendedBase: body.isNewPc ? (body.intendedBase || null) : null,
+        issueStatus: isNew ? 'Not Issued' : (body.issueStatus || 'Issued'),
+        isNewPc: isNew,
+        intendedOffice: isNew ? (body.intendedOffice || null) : null,
+        intendedBase: isNew ? (body.intendedBase || null) : null,
         adStatus: body.adStatus || 'Pending',
         adRemark: body.adRemark || null,
         win10Remark: body.win10Remark || null,
