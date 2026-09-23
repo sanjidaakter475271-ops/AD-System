@@ -3,23 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// POST: Bulk issue existing new PCs (isNewPc=true, issueStatus=Not Issued)
-// Used from Bulk Issue tab in Withdraw & Issue page
-// Body:
-// {
-//   letterRef: string,
-//   letterAuthority: string,
-//   items: Array<{
-//     newPcId: number,
-//     issuedTo: string,        // section
-//     issuedOffice: string,
-//     issuedBase: string,
-//     issueMode: 'without-replace' | 'replace-old',
-//     oldPcId?: number,        // required if replace-old
-//     withdrawnBy?: string,
-//     withdrawalReason?: string,
-//   }>
-// }
+function parseId(id: any): string | null {
+  if (!id) return null;
+  const s = id.toString();
+  return /^\d+$/.test(s) ? s : null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -54,99 +42,93 @@ export async function POST(request: Request) {
       }
     }
 
-    const results = await prisma.$transaction(async (tx) => {
-      const issued = [];
+    const issued = [];
 
-      for (const item of items) {
-        const issuedTo = item.issuedTo;
-        const issuedOffice = item.issuedOffice;
-        const issuedBase = item.issuedBase;
-        const isReplacement = item.issueMode === 'replace-old' && Boolean(item.oldPcId);
+    for (const item of items) {
+      const newPcIdStr = parseId(item.newPcId);
+      const oldPcIdStr = parseId(item.oldPcId);
 
-        // Auto-number PC within section
-        const existingInSection = await tx.issueRecord.findMany({
-          where: {
-            issuedTo,
-            issuedOffice,
-            issuedBase,
-            equipment: { issueStatus: 'Issued' },
-          },
-          select: { pcNumber: true },
-        });
-        const usedNumbers = existingInSection.map(r => r.pcNumber ?? 0).filter(n => n > 0);
-        const nextPcNumber = usedNumbers.length === 0 ? 1 : Math.max(...usedNumbers) + 1;
-        const sectionLabel = `PC-${nextPcNumber}`;
-
-        // Create issue record
-        const issueRecord = await tx.issueRecord.create({
-          data: {
-            equipmentId: parseInt(item.newPcId),
-            issuedTo,
-            issuedOffice,
-            issuedBase,
-            sectionLabel,
-            pcNumber: nextPcNumber,
-            letterRef: letterRef || null,
-            letterAuthority: letterAuthority || null,
-            isReplacement,
-            replacedEquipmentId: isReplacement ? parseInt(item.oldPcId) : null,
-          },
-        });
-
-        // Mark new PC as Issued
-        await tx.equipment.update({
-          where: { id: parseInt(item.newPcId) },
-          data: {
-            issueStatus: 'Issued',
-            directorate: issuedOffice,
-            baseUnit: issuedBase,
-            location: issuedTo,
-          },
-        });
-
-        let withdrawalRecord = null;
-
-        // If replacing old PC
-        if (isReplacement) {
-          const oldPc = await tx.equipment.findUnique({
-            where: { id: parseInt(item.oldPcId) },
-          });
-
-          withdrawalRecord = await tx.withdrawalRecord.create({
-            data: {
-              equipmentId: parseInt(item.oldPcId),
-              withdrawnFrom: oldPc?.directorate || issuedOffice,
-              withdrawnBase: oldPc?.baseUnit || issuedBase,
-              withdrawnBy: item.withdrawnBy || user.name || user.username,
-              reason: item.withdrawalReason || 'Replaced with new PC (Not Eligible)',
-              issueRecordId: issueRecord.id,
-            },
-          });
-
-          await tx.equipment.update({
-            where: { id: parseInt(item.oldPcId) },
-            data: { issueStatus: 'Withdrawn & Issued' },
-          });
-
-          await tx.upgradationRecord.create({
-            data: {
-              equipmentId: parseInt(item.oldPcId),
-              withdrawalId: withdrawalRecord.id,
-              remarks: `Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.baseUnit || issuedBase})`,
-            },
-          });
-        }
-
-        issued.push({ issueRecord, withdrawalRecord });
+      if (!newPcIdStr) {
+        return NextResponse.json({ error: `Invalid newPcId` }, { status: 400 });
       }
 
-      return issued;
-    });
+      const issuedTo = item.issuedTo;
+      const issuedOffice = item.issuedOffice;
+      const issuedBase = item.issuedBase;
+      const isReplacement = item.issueMode === 'replace-old' && Boolean(oldPcIdStr);
+
+      // Auto-number PC within section using raw SQL
+      const sectionRows: any[] = await prisma.$queryRaw`
+        SELECT "pc_number" as "pcNumber" FROM "public"."issue_records"
+        WHERE "issued_to" = ${issuedTo}
+          AND "issued_office" = ${issuedOffice}
+          AND "issued_base" = ${issuedBase}
+      `;
+      const usedNumbers = sectionRows.map(r => Number(r.pcNumber ?? 0)).filter(n => n > 0);
+      const nextPcNumber = usedNumbers.length === 0 ? 1 : Math.max(...usedNumbers) + 1;
+      const sectionLabel = `PC-${nextPcNumber}`;
+
+      // Create issue record via raw SQL
+      const issueRecordRows: any[] = await prisma.$queryRaw`
+        INSERT INTO "public"."issue_records"
+        ("equipment_id", "issued_to", "issued_office", "issued_base", "section_label", "pc_number", "letter_ref", "letter_authority", "is_replacement", "replaced_equipment_id", "created_at")
+        VALUES
+        (${newPcIdStr}::int8, ${issuedTo}, ${issuedOffice}, ${issuedBase}, ${sectionLabel}, ${nextPcNumber}, ${letterRef || null}, ${letterAuthority || null}, ${isReplacement}, ${isReplacement ? `${oldPcIdStr}::int8` : null}, NOW())
+        RETURNING *
+      `;
+      const issueRecord = issueRecordRows[0];
+
+      // Mark new PC as Issued
+      await prisma.$executeRaw`
+        UPDATE "public"."equipment"
+        SET "issue_status" = 'Issued',
+            "directorate" = ${issuedOffice},
+            "base_unit" = ${issuedBase},
+            "location" = ${issuedTo},
+            "updated_at" = NOW()
+        WHERE "id" = ${newPcIdStr}::int8
+      `;
+
+      let withdrawalRecord = null;
+
+      // If replacing old PC
+      if (isReplacement && oldPcIdStr) {
+        const oldPcRows: any[] = await prisma.$queryRaw`
+          SELECT * FROM "public"."equipment" WHERE "id" = ${oldPcIdStr}::int8 LIMIT 1
+        `;
+        const oldPc = oldPcRows[0];
+
+        const wdRows: any[] = await prisma.$queryRaw`
+          INSERT INTO "public"."withdrawal_records"
+          ("equipment_id", "withdrawn_from", "withdrawn_base", "withdrawn_by", "reason", "issue_record_id", "created_at", "withdrawn_at")
+          VALUES
+          (${oldPcIdStr}::int8, ${oldPc?.directorate || issuedOffice}, ${oldPc?.base_unit || issuedBase}, ${item.withdrawnBy || user.name || user.username}, ${item.withdrawalReason || 'Replaced with new PC (Not Eligible)'}, ${issueRecord.id?.toString()}::int8, NOW(), NOW())
+          RETURNING *
+        `;
+        withdrawalRecord = wdRows[0];
+
+        await prisma.$executeRaw`
+          UPDATE "public"."equipment"
+          SET "issue_status" = 'Withdrawn & Issued',
+              "updated_at" = NOW()
+          WHERE "id" = ${oldPcIdStr}::int8
+        `;
+
+        await prisma.$executeRaw`
+          INSERT INTO "public"."upgradation_records"
+          ("equipment_id", "withdrawal_id", "remarks", "created_at", "updated_at")
+          VALUES
+          (${oldPcIdStr}::int8, ${withdrawalRecord.id?.toString()}::int8, ${`Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.base_unit || issuedBase})`}, NOW(), NOW())
+        `;
+      }
+
+      issued.push({ issueRecord, withdrawalRecord });
+    }
 
     return NextResponse.json({
-      message: `${results.length} PC(s) issued successfully`,
-      count: results.length,
-      results,
+      message: `${issued.length} PC(s) issued successfully`,
+      count: issued.length,
+      results: issued,
     });
   } catch (error: any) {
     console.error('Bulk Issue API Error:', error);

@@ -4,26 +4,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calcWin10, calcWin11, calcStorageType } from '@/lib/eligibility';
 
-// POST: Bulk create equipment records, optionally issue immediately
-// Body:
-// {
-//   items: Array<{
-//     baseUnit, directorate, equipmentType, brandModel, serialNo,
-//     processor, generation, ramGb, ssdGb, hddGb, status, location,
-//     isNewPc, intendedOffice, intendedBase, adStatus, adRemark,
-//     // If issueImmediately:
-//     issueImmediately?: boolean,
-//     issueMode?: 'without-replace' | 'replace-old',
-//     issuedTo?: string,       // section name
-//     issuedOffice?: string,
-//     issuedBase?: string,
-//     oldPcId?: number,        // if replace-old
-//     withdrawnBy?: string,
-//     withdrawalReason?: string,
-//   }>,
-//   letterRef?: string,       // common for all
-//   letterAuthority?: string, // common for all
-// }
+function parseId(id: any): string | null {
+  if (!id) return null;
+  const s = id.toString();
+  return /^\d+$/.test(s) ? s : null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -70,151 +55,118 @@ export async function POST(request: Request) {
     }
 
     // Get current max sn to auto-increment
-    const maxSnRecord = await prisma.equipment.findFirst({
-      orderBy: { sn: 'desc' },
-      select: { sn: true },
-    });
-    let nextSn = (maxSnRecord?.sn ?? 0) + 1;
+    const maxSnRows: any[] = await prisma.$queryRaw`
+      SELECT MAX("sn") as "maxSn" FROM "public"."equipment"
+    `;
+    let nextSn = (Number(maxSnRows[0]?.maxSn) || 0) + 1;
 
-    const results = await prisma.$transaction(async (tx) => {
-      const created = [];
+    const created = [];
 
-      for (const item of items) {
-        const ssdGb = item.ssdGb ?? 0;
-        const hddGb = item.hddGb ?? 0;
-        const ramGb = item.ramGb ?? 8;
-        const processor = item.processor ?? 'I5';
-        const generation = item.generation ?? 7;
+    for (const item of items) {
+      const ssdGb = item.ssdGb ?? 0;
+      const hddGb = item.hddGb ?? 0;
+      const ramGb = item.ramGb ?? 8;
+      const processor = item.processor ?? 'I5';
+      const generation = item.generation ?? 7;
 
-        const win10Eligible = calcWin10(processor, generation, ramGb);
-        const win11Eligible = calcWin11(processor, generation, ramGb, ssdGb, hddGb);
-        const storageType = calcStorageType(ssdGb, hddGb);
+      const win10Eligible = calcWin10(processor, generation, ramGb);
+      const win11Eligible = calcWin11(processor, generation, ramGb, ssdGb, hddGb);
+      const storageType = calcStorageType(ssdGb, hddGb);
 
-        // Derive directorate from intendedOffice for new PCs
-        const directorate = item.isNewPc && item.intendedOffice
-          ? item.intendedOffice
-          : item.directorate;
+      const directorate = item.isNewPc && item.intendedOffice
+        ? item.intendedOffice
+        : item.directorate;
 
-        const equipment = await tx.equipment.create({
-          data: {
-            sn: nextSn++,
-            baseUnit: item.isNewPc && item.intendedBase ? item.intendedBase : item.baseUnit,
-            directorate,
-            equipmentType: item.equipmentType,
-            brandModel: item.brandModel || null,
-            serialNo: item.serialNo || null,
-            processor,
-            generation,
-            ramGb,
-            ssdGb,
-            hddGb,
-            storageType,
-            status: item.isNewPc ? 'Svc' : (item.status || 'Svc'),
-            location: item.location || null,
-            issueStatus: item.isNewPc ? 'Not Issued' : (item.issueStatus || 'Not Issued'),
-            isNewPc: Boolean(item.isNewPc),
-            intendedOffice: item.isNewPc ? (item.intendedOffice || null) : null,
-            intendedBase: item.isNewPc ? (item.intendedBase || null) : null,
-            adStatus: item.adStatus || 'Pending',
-            adRemark: item.adRemark || null,
-            win10Eligible,
-            win11Eligible,
-          },
-        });
+      const baseUnit = item.isNewPc && item.intendedBase ? item.intendedBase : item.baseUnit;
 
-        let issueRecord = null;
-        let withdrawalRecord = null;
+      const eqRows: any[] = await prisma.$queryRaw`
+        INSERT INTO "public"."equipment"
+        ("sn", "base_unit", "directorate", "equipment_type", "brand_model", "serial_no", "processor", "generation", "ram_gb", "ssd_gb", "hdd_gb", "storage_type", "status", "location", "issue_status", "is_new_pc", "intended_office", "intended_base", "ad_status", "ad_remark", "win10_eligible_ver", "win11_eligible", "created_at", "updated_at")
+        VALUES
+        (${nextSn++}, ${baseUnit}, ${directorate}, ${item.equipmentType}, ${item.brandModel || null}, ${item.serialNo || null}, ${processor}, ${generation}, ${ramGb}, ${ssdGb}, ${hddGb}, ${storageType}, ${item.isNewPc ? 'Svc' : (item.status || 'Svc')}, ${item.location || null}, ${item.isNewPc ? 'Not Issued' : (item.issueStatus || 'Not Issued')}, ${Boolean(item.isNewPc)}, ${item.isNewPc ? (item.intendedOffice || null) : null}, ${item.isNewPc ? (item.intendedBase || null) : null}, ${item.adStatus || 'Pending'}, ${item.adRemark || null}, ${win10Eligible}, ${win11Eligible}, NOW(), NOW())
+        RETURNING *
+      `;
+      const equipment = eqRows[0];
+      const eqIdStr = equipment.id.toString();
 
-        // Issue immediately if requested
-        if (item.issueImmediately) {
-          const issuedTo = item.issuedTo;
-          const issuedOffice = item.issuedOffice;
-          const issuedBase = item.issuedBase;
+      let issueRecord = null;
+      let withdrawalRecord = null;
 
-          // Auto-number PC within section
-          const existingInSection = await tx.issueRecord.findMany({
-            where: {
-              issuedTo,
-              issuedOffice,
-              issuedBase,
-              equipment: { issueStatus: 'Issued' },
-            },
-            select: { pcNumber: true },
-          });
-          const usedNumbers = existingInSection.map(r => r.pcNumber ?? 0).filter(n => n > 0);
-          const nextPcNumber = usedNumbers.length === 0 ? 1 : Math.max(...usedNumbers) + 1;
-          const sectionLabel = `PC-${nextPcNumber}`;
+      // Issue immediately if requested
+      if (item.issueImmediately) {
+        const issuedTo = item.issuedTo;
+        const issuedOffice = item.issuedOffice;
+        const issuedBase = item.issuedBase;
+        const oldPcIdStr = parseId(item.oldPcId);
+        const isReplacement = item.issueMode === 'replace-old' && Boolean(oldPcIdStr);
 
-          const isReplacement = item.issueMode === 'replace-old' && Boolean(item.oldPcId);
+        const sectionRows: any[] = await prisma.$queryRaw`
+          SELECT "pc_number" as "pcNumber" FROM "public"."issue_records"
+          WHERE "issued_to" = ${issuedTo}
+            AND "issued_office" = ${issuedOffice}
+            AND "issued_base" = ${issuedBase}
+        `;
+        const usedNumbers = sectionRows.map(r => Number(r.pcNumber ?? 0)).filter(n => n > 0);
+        const nextPcNumber = usedNumbers.length === 0 ? 1 : Math.max(...usedNumbers) + 1;
+        const sectionLabel = `PC-${nextPcNumber}`;
 
-          issueRecord = await tx.issueRecord.create({
-            data: {
-              equipmentId: equipment.id,
-              issuedTo,
-              issuedOffice,
-              issuedBase,
-              sectionLabel,
-              pcNumber: nextPcNumber,
-              letterRef: letterRef || null,
-              letterAuthority: letterAuthority || null,
-              isReplacement,
-              replacedEquipmentId: isReplacement ? parseInt(item.oldPcId) : null,
-            },
-          });
+        const issueRecordRows: any[] = await prisma.$queryRaw`
+          INSERT INTO "public"."issue_records"
+          ("equipment_id", "issued_to", "issued_office", "issued_base", "section_label", "pc_number", "letter_ref", "letter_authority", "is_replacement", "replaced_equipment_id", "created_at")
+          VALUES
+          (${eqIdStr}::int8, ${issuedTo}, ${issuedOffice}, ${issuedBase}, ${sectionLabel}, ${nextPcNumber}, ${letterRef || null}, ${letterAuthority || null}, ${isReplacement}, ${isReplacement ? `${oldPcIdStr}::int8` : null}, NOW())
+          RETURNING *
+        `;
+        issueRecord = issueRecordRows[0];
 
-          // Mark new PC as Issued
-          await tx.equipment.update({
-            where: { id: equipment.id },
-            data: {
-              issueStatus: 'Issued',
-              directorate: issuedOffice,
-              baseUnit: issuedBase,
-              location: issuedTo,
-            },
-          });
+        await prisma.$executeRaw`
+          UPDATE "public"."equipment"
+          SET "issue_status" = 'Issued',
+              "directorate" = ${issuedOffice},
+              "base_unit" = ${issuedBase},
+              "location" = ${issuedTo},
+              "updated_at" = NOW()
+          WHERE "id" = ${eqIdStr}::int8
+        `;
 
-          // If replacing old PC
-          if (isReplacement) {
-            const oldPc = await tx.equipment.findUnique({
-              where: { id: parseInt(item.oldPcId) },
-            });
+        if (isReplacement && oldPcIdStr) {
+          const oldPcRows: any[] = await prisma.$queryRaw`
+            SELECT * FROM "public"."equipment" WHERE "id" = ${oldPcIdStr}::int8 LIMIT 1
+          `;
+          const oldPc = oldPcRows[0];
 
-            withdrawalRecord = await tx.withdrawalRecord.create({
-              data: {
-                equipmentId: parseInt(item.oldPcId),
-                withdrawnFrom: oldPc?.directorate || issuedOffice,
-                withdrawnBase: oldPc?.baseUnit || issuedBase,
-                withdrawnBy: item.withdrawnBy || user.name || user.username,
-                reason: item.withdrawalReason || 'Replaced with new PC (Not Eligible)',
-                issueRecordId: issueRecord.id,
-              },
-            });
+          const wdRows: any[] = await prisma.$queryRaw`
+            INSERT INTO "public"."withdrawal_records"
+            ("equipment_id", "withdrawn_from", "withdrawn_base", "withdrawn_by", "reason", "issue_record_id", "created_at", "withdrawn_at")
+            VALUES
+            (${oldPcIdStr}::int8, ${oldPc?.directorate || issuedOffice}, ${oldPc?.base_unit || issuedBase}, ${item.withdrawnBy || user.name || user.username}, ${item.withdrawalReason || 'Replaced with new PC (Not Eligible)'}, ${issueRecord.id?.toString()}::int8, NOW(), NOW())
+            RETURNING *
+          `;
+          withdrawalRecord = wdRows[0];
 
-            await tx.equipment.update({
-              where: { id: parseInt(item.oldPcId) },
-              data: { issueStatus: 'Withdrawn & Issued' },
-            });
+          await prisma.$executeRaw`
+            UPDATE "public"."equipment"
+            SET "issue_status" = 'Withdrawn & Issued',
+                "updated_at" = NOW()
+            WHERE "id" = ${oldPcIdStr}::int8
+          `;
 
-            await tx.upgradationRecord.create({
-              data: {
-                equipmentId: parseInt(item.oldPcId),
-                withdrawalId: withdrawalRecord.id,
-                remarks: `Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.baseUnit || issuedBase})`,
-              },
-            });
-          }
+          await prisma.$executeRaw`
+            INSERT INTO "public"."upgradation_records"
+            ("equipment_id", "withdrawal_id", "remarks", "created_at", "updated_at")
+            VALUES
+            (${oldPcIdStr}::int8, ${withdrawalRecord.id?.toString()}::int8, ${`Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.base_unit || issuedBase})`}, NOW(), NOW())
+          `;
         }
-
-        created.push({ equipment, issueRecord, withdrawalRecord });
       }
 
-      return created;
-    });
+      created.push({ equipment: { ...equipment, id: eqIdStr }, issueRecord, withdrawalRecord });
+    }
 
     return NextResponse.json({
-      message: `${results.length} equipment record(s) created successfully`,
-      count: results.length,
-      results,
+      message: `${created.length} equipment record(s) created successfully`,
+      count: created.length,
+      results: created,
     });
   } catch (error: any) {
     console.error('Bulk Create API Error:', error);

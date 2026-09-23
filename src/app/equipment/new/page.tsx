@@ -1210,23 +1210,33 @@ export default function NewEquipmentPage() {
                       </div>
                     </div>
 
-                    {/* RAM & SSD */}
+                    {/* RAM, SSD & HDD */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">RAM & SSD</label>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">RAM, SSD &amp; HDD</label>
                       <div className="flex gap-1">
                         <select
                           value={row.ramGb}
                           onChange={(e) => updateRow(row.id, { ramGb: parseInt(e.target.value) })}
-                          className="w-1/2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
+                          className="w-1/3 bg-slate-800 border border-slate-700 rounded-xl px-1.5 py-1.5 text-xs text-white"
+                          title="RAM"
                         >
                           {RAM_OPTIONS.map(r => <option key={r} value={r}>{r}GB</option>)}
                         </select>
                         <select
                           value={row.ssdGb}
                           onChange={(e) => updateRow(row.id, { ssdGb: parseInt(e.target.value) })}
-                          className="w-1/2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
+                          className="w-1/3 bg-slate-800 border border-slate-700 rounded-xl px-1.5 py-1.5 text-xs text-white"
+                          title="SSD"
                         >
                           {SSD_OPTIONS.map(s => <option key={s} value={s}>{s === 0 ? 'No SSD' : `${s}G SSD`}</option>)}
+                        </select>
+                        <select
+                          value={row.hddGb}
+                          onChange={(e) => updateRow(row.id, { hddGb: parseInt(e.target.value) })}
+                          className="w-1/3 bg-slate-800 border border-slate-700 rounded-xl px-1.5 py-1.5 text-xs text-white"
+                          title="HDD"
+                        >
+                          {HDD_OPTIONS.map(h => <option key={h} value={h}>{h === 0 ? 'No HDD' : `${h}G HDD`}</option>)}
                         </select>
                       </div>
                     </div>

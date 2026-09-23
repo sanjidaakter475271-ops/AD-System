@@ -3,6 +3,38 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calcWin10, calcWin11, calcStorageType } from '@/lib/eligibility';
+import { Prisma } from '@prisma/client';
+
+function mapEquipmentRow(r: any) {
+  return {
+    id: r.id.toString(),
+    sn: Number(r.sn),
+    baseUnit: r.base_unit,
+    directorate: r.directorate,
+    equipmentType: r.equipment_type,
+    brandModel: r.brand_model,
+    serialNo: r.serial_no,
+    processor: r.processor,
+    generation: r.generation ? Number(r.generation) : null,
+    ramGb: r.ram_gb ? Number(r.ram_gb) : null,
+    ssdGb: Number(r.ssd_gb || 0),
+    hddGb: Number(r.hdd_gb || 0),
+    storageType: r.storage_type,
+    status: r.status,
+    location: r.location,
+    issueStatus: r.issue_status,
+    isNewPc: Boolean(r.is_new_pc),
+    intendedOffice: r.intended_office,
+    intendedBase: r.intended_base,
+    adStatus: r.ad_status,
+    adRemark: r.ad_remark,
+    win10Remark: r.win10_remark,
+    win11Eligible: r.win11_eligible,
+    win10Eligible: r.win10_eligible_ver,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -20,44 +52,51 @@ export async function GET(request: Request) {
     const issueStatus = searchParams.get('issueStatus') || '';
     const win11Eligible = searchParams.get('win11Eligible') || '';
 
-    const where: any = {};
+    const conditions: Prisma.Sql[] = [];
 
     // Role-based Access Control (RBAC): Non-admin users can ONLY see equipment belonging to their assigned baseUnit
     if (user && user.role !== 'admin' && user.baseUnit) {
-      where.baseUnit = user.baseUnit;
+      conditions.push(Prisma.sql`"base_unit" = ${user.baseUnit}`);
     } else if (baseUnit) {
-      where.baseUnit = baseUnit;
+      conditions.push(Prisma.sql`"base_unit" = ${baseUnit}`);
     }
 
-    if (directorate) where.directorate = directorate;
-    if (status) where.status = status;
-    if (equipmentType) where.equipmentType = equipmentType;
-    if (adStatus) where.adStatus = adStatus;
-    if (isNewPc === 'true') where.isNewPc = true;
-    if (isNewPc === 'false') where.isNewPc = false;
-    if (issueStatus) where.issueStatus = issueStatus;
-    if (win11Eligible) where.win11Eligible = { contains: win11Eligible };
+    if (directorate) conditions.push(Prisma.sql`"directorate" = ${directorate}`);
+    if (status) conditions.push(Prisma.sql`"status" = ${status}`);
+    if (equipmentType) conditions.push(Prisma.sql`"equipment_type" = ${equipmentType}`);
+    if (adStatus) conditions.push(Prisma.sql`"ad_status" = ${adStatus}`);
+    if (isNewPc === 'true') conditions.push(Prisma.sql`"is_new_pc" = true`);
+    if (isNewPc === 'false') conditions.push(Prisma.sql`"is_new_pc" = false`);
+    if (issueStatus) conditions.push(Prisma.sql`"issue_status" = ${issueStatus}`);
+    if (win11Eligible) conditions.push(Prisma.sql`"win11_eligible" LIKE ${'%' + win11Eligible + '%'}`);
 
     if (search) {
-      where.OR = [
-        { directorate: { contains: search } },
-        { baseUnit: { contains: search } },
-        { equipmentType: { contains: search } },
-        { brandModel: { contains: search } },
-        { serialNo: { contains: search } },
-        { processor: { contains: search } },
-        { location: { contains: search } },
-        { status: { contains: search } },
-        { adStatus: { contains: search } },
-        { adRemark: { contains: search } },
-      ];
+      const searchPattern = '%' + search + '%';
+      conditions.push(Prisma.sql`(
+        "directorate" ILIKE ${searchPattern} OR
+        "base_unit" ILIKE ${searchPattern} OR
+        "equipment_type" ILIKE ${searchPattern} OR
+        "brand_model" ILIKE ${searchPattern} OR
+        "serial_no" ILIKE ${searchPattern} OR
+        "processor" ILIKE ${searchPattern} OR
+        "location" ILIKE ${searchPattern} OR
+        "status" ILIKE ${searchPattern} OR
+        "ad_status" ILIKE ${searchPattern} OR
+        "ad_remark" ILIKE ${searchPattern}
+      )`);
     }
 
-    const equipment = await prisma.equipment.findMany({
-      where,
-      orderBy: { sn: 'asc' },
-    });
+    const whereClause = conditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
 
+    const rows: any[] = await prisma.$queryRaw`
+      SELECT * FROM "public"."equipment"
+      ${whereClause}
+      ORDER BY "sn" ASC
+    `;
+
+    const equipment = rows.map(mapEquipmentRow);
     return NextResponse.json(equipment);
   } catch (error) {
     console.error('API Error:', error);

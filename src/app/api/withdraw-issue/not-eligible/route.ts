@@ -2,10 +2,41 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+function mapEquipmentRow(r: any) {
+  return {
+    id: r.id.toString(),
+    sn: Number(r.sn),
+    baseUnit: r.base_unit,
+    directorate: r.directorate,
+    equipmentType: r.equipment_type,
+    brandModel: r.brand_model,
+    serialNo: r.serial_no,
+    processor: r.processor,
+    generation: r.generation ? Number(r.generation) : null,
+    ramGb: r.ram_gb ? Number(r.ram_gb) : null,
+    ssdGb: Number(r.ssd_gb || 0),
+    hddGb: Number(r.hdd_gb || 0),
+    storageType: r.storage_type,
+    status: r.status,
+    location: r.location,
+    issueStatus: r.issue_status,
+    isNewPc: Boolean(r.is_new_pc),
+    intendedOffice: r.intended_office,
+    intendedBase: r.intended_base,
+    adStatus: r.ad_status,
+    adRemark: r.ad_remark,
+    win10Remark: r.win10_remark,
+    win11Eligible: r.win11_eligible,
+    win10Eligible: r.win10_eligible_ver,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
 
 // GET: Not-eligible PCs inventory (isNewPc=false, win10Eligible="Not Eligible")
 // Also returns available new PCs (isNewPc=true, issueStatus=Not Issued)
-// filtered by same base for replacement picking
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,72 +48,86 @@ export async function GET(request: Request) {
     const mode = searchParams.get('mode') || 'inventory'; // 'inventory' | 'new-pcs'
 
     if (mode === 'new-pcs') {
-      // Return available new PCs (not yet issued) — for replacement picker
-      // Filter by intendedBase OR base, prefer same office match
-      const where: any = {
-        isNewPc: true,
-        issueStatus: 'Not Issued',
-      };
+      const conditions: Prisma.Sql[] = [
+        Prisma.sql`"is_new_pc" = true`,
+        Prisma.sql`"issue_status" = 'Not Issued'`,
+      ];
+
       if (user && user.role !== 'admin' && user.baseUnit) {
-        where.OR = [
-          { intendedBase: user.baseUnit },
-          { baseUnit: user.baseUnit },
-        ];
+        conditions.push(Prisma.sql`("intended_base" = ${user.baseUnit} OR "base_unit" = ${user.baseUnit})`);
       } else if (baseUnit) {
-        where.OR = [
-          { intendedBase: baseUnit },
-          { baseUnit: baseUnit },
-        ];
+        conditions.push(Prisma.sql`("intended_base" = ${baseUnit} OR "base_unit" = ${baseUnit})`);
       }
-      const newPcs = await prisma.equipment.findMany({
-        where,
-        orderBy: { sn: 'asc' },
-      });
-      return NextResponse.json(newPcs);
+
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT * FROM "public"."equipment"
+        WHERE ${Prisma.join(conditions, ' AND ')}
+        ORDER BY "sn" ASC
+      `;
+
+      return NextResponse.json(rows.map(mapEquipmentRow));
     }
 
     // Default: inventory mode — not-eligible old PCs
-    const where: any = {
-      win10Eligible: 'Not Eligible',
-      isNewPc: false,
-    };
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`"win10_eligible_ver" = 'Not Eligible'`,
+      Prisma.sql`"is_new_pc" = false`,
+    ];
 
     if (user && user.role !== 'admin' && user.baseUnit) {
-      where.baseUnit = user.baseUnit;
+      conditions.push(Prisma.sql`"base_unit" = ${user.baseUnit}`);
     } else if (baseUnit) {
-      where.baseUnit = baseUnit;
+      conditions.push(Prisma.sql`"base_unit" = ${baseUnit}`);
     }
 
-    if (directorate) where.directorate = directorate;
+    if (directorate) {
+      conditions.push(Prisma.sql`"directorate" = ${directorate}`);
+    }
 
-    const equipment = await prisma.equipment.findMany({
-      where,
-      orderBy: { sn: 'asc' },
-      include: {
-        issueRecords: {
-          orderBy: { issuedAt: 'desc' },
-          take: 1,
-          select: {
-            id: true,
-            issuedTo: true,
-            issuedOffice: true,
-            issuedBase: true,
-            issuedAt: true,
-            sectionLabel: true,
-            pcNumber: true,
-            letterRef: true,
-            letterAuthority: true,
-            equipment: { select: { sn: true, equipmentType: true, brandModel: true, processor: true, generation: true, ramGb: true, storageType: true, intendedOffice: true, intendedBase: true } },
-          },
-        },
-        withdrawalRecords: {
-          orderBy: { withdrawnAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
+    const rows: any[] = await prisma.$queryRaw`
+      SELECT * FROM "public"."equipment"
+      WHERE ${Prisma.join(conditions, ' AND ')}
+      ORDER BY "sn" ASC
+    `;
 
-    return NextResponse.json(equipment);
+    // Map equipment rows and attach latest issueRecords if any
+    const equipmentList = await Promise.all(rows.map(async (row) => {
+      const mapped = mapEquipmentRow(row);
+      const safeId = row.id.toString();
+      const issueRecords: any[] = await prisma.$queryRaw`
+        SELECT
+          i."id", i."issued_to" as "issuedTo", i."issued_office" as "issuedOffice",
+          i."issued_base" as "issuedBase", i."issued_at" as "issuedAt",
+          i."section_label" as "sectionLabel", i."pc_number" as "pcNumber",
+          i."letter_ref" as "letterRef", i."letter_authority" as "letterAuthority",
+          e."sn", e."equipment_type" as "equipmentType", e."brand_model" as "brandModel",
+          e."processor", e."generation", e."ram_gb" as "ramGb", e."storage_type" as "storageType"
+        FROM "public"."issue_records" i
+        LEFT JOIN "public"."equipment" e ON e."id" = i."equipment_id"
+        WHERE i."equipment_id" = ${safeId}::int8
+        ORDER BY i."issued_at" DESC
+        LIMIT 1
+      `;
+      return {
+        ...mapped,
+        issueRecords: issueRecords.map(r => ({
+          ...r,
+          id: r.id?.toString(),
+          equipment: r.sn ? {
+            sn: Number(r.sn),
+            equipmentType: r.equipmentType,
+            brandModel: r.brandModel,
+            processor: r.processor,
+            generation: r.generation ? Number(r.generation) : null,
+            ramGb: r.ramGb ? Number(r.ramGb) : null,
+            storageType: r.storageType,
+          } : null
+        })),
+        withdrawalRecords: [],
+      };
+    }));
+
+    return NextResponse.json(equipmentList);
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Failed to fetch not-eligible equipment' }, { status: 500 });
