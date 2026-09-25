@@ -39,6 +39,10 @@ export default function EquipmentPage() {
   const [editingAdStatus, setEditingAdStatus] = useState('');
   const [editingAdRemark, setEditingAdRemark] = useState('');
 
+  // Bulk Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingBulk, setDeletingBulk] = useState(false);
+
   const loadBaseUnits = async () => {
     try {
       const res = await fetch('/api/base-units');
@@ -54,6 +58,7 @@ export default function EquipmentPage() {
   const fetchEquipment = async () => {
     setLoading(true);
     setError('');
+    setSelectedIds([]);
     try {
       const query = new URLSearchParams();
       if (search) query.append('search', search);
@@ -118,9 +123,50 @@ export default function EquipmentPage() {
       const res = await fetch(`/api/equipment/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete item');
       setEquipment(equipment.filter((item) => item.id !== id));
+      setSelectedIds(prev => prev.filter(selectedId => selectedId !== String(id)));
     } catch (err: any) {
       alert(err.message);
     }
+  };
+
+  // Bulk select handlers
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(equipment.map((item) => String(item.id)));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected equipment items?`)) return;
+
+    setDeletingBulk(true);
+    try {
+      const res = await fetch('/api/equipment/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to bulk delete items');
+      }
+
+      setEquipment(prev => prev.filter((item) => !selectedIds.includes(String(item.id))));
+      setSelectedIds([]);
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setDeletingBulk(false);
   };
 
   return (
@@ -137,6 +183,17 @@ export default function EquipmentPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={deletingBulk}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-semibold transition-all"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              Delete Selected ({selectedIds.length})
+            </button>
+          )}
+
           <Link
             href="/import"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-all"
@@ -289,6 +346,15 @@ export default function EquipmentPage() {
             <table className="w-full text-left text-xs text-slate-200">
               <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
                 <tr>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={equipment.length > 0 && selectedIds.length === equipment.length}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+                      title="Select all equipment"
+                    />
+                  </th>
                   <th className="p-3.5">SN</th>
                   <th className="p-3.5">Base & Directorate</th>
                   <th className="p-3.5">Type & PC Status</th>
@@ -302,14 +368,27 @@ export default function EquipmentPage() {
               </thead>
               <tbody className="divide-y divide-slate-800/80">
                 {equipment.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={item.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(String(item.id)) ? 'bg-sky-950/20' : ''}`}>
+                    <td className="p-3.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(String(item.id))}
+                        onChange={() => handleSelectRow(String(item.id))}
+                        className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-3.5 font-bold text-sky-400">#{item.sn}</td>
                     <td className="p-3.5">
                       <div className="font-semibold text-white">{item.directorate}</div>
-                      <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                      <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
                         <Building className="w-3 h-3 text-slate-500" />
                         {item.baseUnit || 'Air HQ'}
                       </div>
+                      {item.location && (
+                        <div className="text-[10px] text-sky-400/90 font-medium mt-0.5">
+                          Loc: {item.location}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3.5">
                       <div className="font-semibold text-indigo-300">{item.equipmentType}</div>
@@ -325,8 +404,16 @@ export default function EquipmentPage() {
                     </td>
                     <td className="p-3.5 text-slate-300">
                       <div>{item.processor ? `${item.processor} (${item.generation || '?'}th Gen)` : '—'}</div>
-                      <div className="text-[11px] text-slate-400">
-                        {item.ramGb ? `${item.ramGb}GB RAM` : ''} 
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {item.ramGb ? `${item.ramGb}GB RAM` : ''}
+                        {(item.ssdGb > 0 || item.hddGb > 0) && (
+                          <span className="text-slate-300 ml-1">
+                            • {[
+                                item.ssdGb > 0 ? `${item.ssdGb}GB SSD` : null,
+                                item.hddGb > 0 ? `${item.hddGb >= 1000 ? `${item.hddGb / 1024 >= 1 ? `${Math.round(item.hddGb/1024)}TB` : `${item.hddGb}GB`}` : `${item.hddGb}GB`} HDD` : null
+                              ].filter(Boolean).join(' + ')}
+                          </span>
+                        )}
                         <span className="text-slate-500 ml-1">({item.storageType || 'N/A'})</span>
                       </div>
                     </td>

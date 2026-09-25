@@ -16,6 +16,37 @@ function parseId(id: string): string | null {
   return /^\d+$/.test(id) ? id : null;
 }
 
+function mapRow(equipment: any) {
+  return {
+    id: equipment.id?.toString(),
+    sn: equipment.sn ? Number(equipment.sn) : 0,
+    baseUnit: equipment.base_unit,
+    directorate: equipment.directorate,
+    equipmentType: equipment.equipment_type,
+    brandModel: equipment.brand_model,
+    serialNo: equipment.serial_no,
+    processor: equipment.processor,
+    generation: equipment.generation ? Number(equipment.generation) : null,
+    ramGb: equipment.ram_gb ? Number(equipment.ram_gb) : null,
+    ssdGb: Number(equipment.ssd_gb || 0),
+    hddGb: Number(equipment.hdd_gb || 0),
+    storageType: equipment.storage_type,
+    status: equipment.status,
+    location: equipment.location,
+    issueStatus: equipment.issue_status,
+    isNewPc: Boolean(equipment.is_new_pc),
+    intendedOffice: equipment.intended_office,
+    intendedBase: equipment.intended_base,
+    adStatus: equipment.ad_status,
+    adRemark: equipment.ad_remark,
+    win10Remark: equipment.win10_remark,
+    win11Eligible: equipment.win11_eligible,
+    win10Eligible: equipment.win10_eligible_ver,
+    createdAt: equipment.created_at,
+    updatedAt: equipment.updated_at,
+  };
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
@@ -25,9 +56,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const safeId = parseId(id);
     if (!safeId) return NextResponse.json({ error: 'Invalid equipment id' }, { status: 400 });
 
-    const rows: any[] = await prisma.$queryRaw`
-      SELECT * FROM "public"."equipment" WHERE "id" = ${safeId}::int8 LIMIT 1
-    `;
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "public"."equipment" WHERE "id" = ${safeId} LIMIT 1`
+    );
     const equipment = rows[0];
     if (!equipment) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -36,32 +67,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Forbidden: Access denied to this Base Unit item' }, { status: 403 });
     }
 
-    // Normalize raw snake_case columns to the camelCase shape the UI expects.
-    const normalized = {
-      ...equipment,
-      id: equipment.id?.toString(),
-      baseUnit: equipment.base_unit,
-      equipmentType: equipment.equipment_type,
-      brandModel: equipment.brand_model,
-      serialNo: equipment.serial_no,
-      ramGb: equipment.ram_gb,
-      ssdGb: equipment.ssd_gb,
-      hddGb: equipment.hdd_gb,
-      storageType: equipment.storage_type,
-      issueStatus: equipment.issue_status,
-      isNewPc: equipment.is_new_pc,
-      intendedOffice: equipment.intended_office,
-      intendedBase: equipment.intended_base,
-      adStatus: equipment.ad_status,
-      adRemark: equipment.ad_remark,
-      win10Remark: equipment.win10_remark,
-      win11Eligible: equipment.win11_eligible,
-      win10Eligible: equipment.win10_eligible_ver,
-      createdAt: equipment.created_at,
-      updatedAt: equipment.updated_at,
-    };
-
-    return NextResponse.json(normalized);
+    return NextResponse.json(mapRow(equipment));
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
@@ -77,9 +83,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const safeId = parseId(id);
     if (!safeId) return NextResponse.json({ error: 'Invalid equipment id' }, { status: 400 });
 
-    const existingRows: any[] = await prisma.$queryRaw`
-      SELECT * FROM "public"."equipment" WHERE "id" = ${safeId}::int8 LIMIT 1
-    `;
+    const existingRows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "public"."equipment" WHERE "id" = ${safeId} LIMIT 1`
+    );
     const existing = existingRows[0];
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -96,60 +102,60 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const ssdGb = body.ssdGb ? parseInt(body.ssdGb) : (body.ssdGb === 0 ? 0 : existing.ssd_gb);
     const hddGb = body.hddGb ? parseInt(body.hddGb) : (body.hddGb === 0 ? 0 : existing.hdd_gb);
 
-    const rows: any[] = await prisma.$queryRaw`
-      UPDATE "public"."equipment"
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `UPDATE "public"."equipment"
       SET
-        "base_unit" = ${baseUnit},
-        "directorate" = ${body.directorate ?? existing.directorate},
-        "equipment_type" = ${body.equipmentType ?? existing.equipment_type},
-        "brand_model" = ${body.brandModel ?? existing.brand_model},
-        "serial_no" = ${body.serialNo ?? existing.serial_no},
-        "processor" = ${body.processor ?? existing.processor},
-        "generation" = ${generation},
-        "ram_gb" = ${ramGb},
-        "ssd_gb" = ${ssdGb},
-        "hdd_gb" = ${hddGb},
-        "storage_type" = ${body.storageType ?? existing.storage_type},
-        "status" = ${body.status ?? existing.status},
-        "location" = ${body.location ?? existing.location},
-        "issue_status" = ${body.issueStatus ?? existing.issue_status},
-        "is_new_pc" = ${body.isNewPc ?? existing.is_new_pc},
-        "intended_office" = ${body.intendedOffice ?? existing.intended_office},
-        "intended_base" = ${body.intendedBase ?? existing.intended_base},
-        "ad_status" = ${body.adStatus ?? existing.ad_status},
-        "ad_remark" = ${body.adRemark ?? existing.ad_remark},
-        "win10_remark" = ${body.win10Remark ?? existing.win10_remark},
-        "win11_eligible" = ${body.win11Eligible ?? existing.win11_eligible},
-        "win10_eligible_ver" = ${body.win10Eligible ?? existing.win10_eligible_ver},
+        "base_unit" = $1,
+        "directorate" = $2,
+        "equipment_type" = $3,
+        "brand_model" = $4,
+        "serial_no" = $5,
+        "processor" = $6,
+        "generation" = $7,
+        "ram_gb" = $8,
+        "ssd_gb" = $9,
+        "hdd_gb" = $10,
+        "storage_type" = $11,
+        "status" = $12,
+        "location" = $13,
+        "issue_status" = $14,
+        "is_new_pc" = $15,
+        "intended_office" = $16,
+        "intended_base" = $17,
+        "ad_status" = $18,
+        "ad_remark" = $19,
+        "win10_remark" = $20,
+        "win11_eligible" = $21,
+        "win10_eligible_ver" = $22,
         "updated_at" = now()
-      WHERE "id" = ${safeId}::int8
-      RETURNING *
-    `;
+      WHERE "id" = $23
+      RETURNING *`,
+      baseUnit,
+      body.directorate ?? existing.directorate,
+      body.equipmentType ?? existing.equipment_type,
+      body.brandModel ?? existing.brand_model,
+      body.serialNo ?? existing.serial_no,
+      body.processor ?? existing.processor,
+      generation,
+      ramGb,
+      ssdGb,
+      hddGb,
+      body.storageType ?? existing.storage_type,
+      body.status ?? existing.status,
+      body.location ?? existing.location,
+      body.issueStatus ?? existing.issue_status,
+      body.isNewPc ?? existing.is_new_pc,
+      body.intendedOffice ?? existing.intended_office,
+      body.intendedBase ?? existing.intended_base,
+      body.adStatus ?? existing.ad_status,
+      body.adRemark ?? existing.ad_remark,
+      body.win10Remark ?? existing.win10_remark,
+      body.win11Eligible ?? existing.win11_eligible,
+      body.win10Eligible ?? existing.win10_eligible_ver,
+      safeId
+    );
     const equipment = rows[0];
-    const normalized = {
-      ...equipment,
-      id: equipment.id?.toString(),
-      baseUnit: equipment.base_unit,
-      equipmentType: equipment.equipment_type,
-      brandModel: equipment.brand_model,
-      serialNo: equipment.serial_no,
-      ramGb: equipment.ram_gb,
-      ssdGb: equipment.ssd_gb,
-      hddGb: equipment.hdd_gb,
-      storageType: equipment.storage_type,
-      issueStatus: equipment.issue_status,
-      isNewPc: equipment.is_new_pc,
-      intendedOffice: equipment.intended_office,
-      intendedBase: equipment.intended_base,
-      adStatus: equipment.ad_status,
-      adRemark: equipment.ad_remark,
-      win10Remark: equipment.win10_remark,
-      win11Eligible: equipment.win11_eligible,
-      win10Eligible: equipment.win10_eligible_ver,
-      createdAt: equipment.created_at,
-      updatedAt: equipment.updated_at,
-    };
-    return NextResponse.json(normalized);
+    return NextResponse.json(mapRow(equipment));
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Failed to update equipment' }, { status: 500 });
@@ -165,9 +171,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const safeId = parseId(id);
     if (!safeId) return NextResponse.json({ error: 'Invalid equipment id' }, { status: 400 });
 
-    const existingRows: any[] = await prisma.$queryRaw`
-      SELECT * FROM "public"."equipment" WHERE "id" = ${safeId}::int8 LIMIT 1
-    `;
+    const existingRows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "public"."equipment" WHERE "id" = ${safeId} LIMIT 1`
+    );
     const existing = existingRows[0];
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -176,14 +182,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     // Delete dependent records first to prevent orphan rows when foreign key CASCADE is absent in DB
-    await prisma.$executeRaw`DELETE FROM "public"."upgradation_records" WHERE "equipment_id" = ${safeId}::int8`;
-    await prisma.$executeRaw`DELETE FROM "public"."withdrawal_records" WHERE "equipment_id" = ${safeId}::int8`;
-    await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "equipment_id" = ${safeId}::int8`;
-    await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "replaced_equipment_id" = ${safeId}::int8`;
+    await prisma.$executeRawUnsafe(`DELETE FROM "public"."upgradation_records" WHERE "equipment_id" = ${safeId}`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "public"."withdrawal_records" WHERE "equipment_id" = ${safeId}`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "public"."issue_records" WHERE "equipment_id" = ${safeId}`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "public"."issue_records" WHERE "replaced_equipment_id" = ${safeId}`);
 
-    await prisma.$executeRaw`
-      DELETE FROM "public"."equipment" WHERE "id" = ${safeId}::int8
-    `;
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "public"."equipment" WHERE "id" = ${safeId}`
+    );
     return NextResponse.json({ message: 'Deleted successfully' });
   } catch (error) {
     console.error('API Error:', error);

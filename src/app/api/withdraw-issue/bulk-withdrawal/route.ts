@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// POST: Perform bulk withdrawal with letter authority
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,48 +13,44 @@ export async function POST(request: Request) {
     const { letterRef, letterAuthority, withdrawnBy, reason, items } = body;
 
     if (!letterRef || !letterAuthority || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields: Letter Ref & Authority are required' }, { status: 400 });
     }
 
-    // Execute within a transaction
-    const result = await prisma.$transaction(async (tx: any) => {
-      // 1. Create the Batch
-      const batch = await tx.withdrawalBatch.create({
-        data: {
-          letterRef,
-          letterAuthority,
-          withdrawnBy,
-          reason,
-        },
-      });
+    // 1. Create withdrawal batch
+    const batchRows: any[] = await prisma.$queryRawUnsafe(
+      `INSERT INTO "public"."withdrawal_batches" ("letter_ref", "letter_authority", "withdrawn_by", "reason", "withdrawn_at")
+       VALUES ($1, $2, $3, $4, now())
+       RETURNING "id"`,
+      letterRef,
+      letterAuthority,
+      withdrawnBy || null,
+      reason || 'Not Eligible for Win 10'
+    );
+    const batchId = batchRows[0]?.id?.toString();
 
-      // 2. Process items
-      const equipmentIds = items.map((item: any) => item.equipmentId);
+    // 2. Process each equipment item
+    for (const item of items) {
+      const safeId = String(item.equipmentId || item.id).replace(/[^\d]/g, '');
+      if (!safeId) continue;
 
-      // Create WithdrawalRecords for each item linked to the batch
-      await tx.withdrawalRecord.createMany({
-        data: items.map((item: any) => ({
-          equipmentId: item.equipmentId,
-          withdrawnFrom: item.location, // Keeping original section/location
-          withdrawnBase: item.baseUnit,
-          reason: reason,
-          withdrawnBy: withdrawnBy,
-          batchId: batch.id,
-        })),
-      });
+      const location = item.location || item.directorate || 'General Section';
+      const baseUnit = item.baseUnit || 'Air HQ';
 
-      // 3. Update Equipment issueStatus
-      await tx.equipment.updateMany({
-        where: { id: { in: equipmentIds } },
-        data: {
-          issueStatus: 'Withdrawn',
-        },
-      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "public"."withdrawal_records" ("equipment_id", "withdrawn_from", "withdrawn_base", "reason", "withdrawn_by", "batch_id", "withdrawn_at", "created_at")
+         VALUES (${safeId}, $1, $2, $3, $4, ${batchId}, now(), now())`,
+        location,
+        baseUnit,
+        reason || 'Not Eligible for Win 10',
+        withdrawnBy || null
+      );
 
-      return batch;
-    });
+      await prisma.$executeRawUnsafe(
+        `UPDATE "public"."equipment" SET "issue_status" = 'Withdrawn', "updated_at" = now() WHERE "id" = ${safeId}`
+      );
+    }
 
-    return NextResponse.json({ message: 'Bulk withdrawal completed successfully', batchId: result.id });
+    return NextResponse.json({ message: 'Bulk withdrawal completed successfully', batchId });
   } catch (error: any) {
     console.error('API Error:', error);
     return NextResponse.json({ error: error?.message || 'Failed to process bulk withdrawal' }, { status: 500 });

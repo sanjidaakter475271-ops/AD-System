@@ -109,15 +109,50 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
   }, [id]);
 
   const activeBaseObject = customBaseUnits.find(b => b.name === formData.baseUnit);
-  const availableOffices = (activeBaseObject?.offices && activeBaseObject.offices.length > 0)
+  const baseOffices = (activeBaseObject?.offices && activeBaseObject.offices.length > 0)
     ? activeBaseObject.offices.map((o: any) => o.name)
     : (formData.baseUnit === 'Air HQ' ? DIRECTORATES : ['General Office', 'Admin Branch']);
 
-  useEffect(() => {
-    if (availableOffices.length > 0 && !availableOffices.includes(formData.directorate)) {
-      setFormData(prev => ({ ...prev, directorate: availableOffices[0] }));
-    }
-  }, [formData.baseUnit, customBaseUnits]);
+  const availableOffices = Array.from(new Set([
+    ...baseOffices,
+    ...(formData.directorate ? [formData.directorate] : [])
+  ]));
+
+  const allBaseUnits = Array.from(new Set([
+    ...BASE_UNITS,
+    ...customBaseUnits.map(b => b.name),
+    ...(formData.baseUnit ? [formData.baseUnit] : [])
+  ]));
+
+  const allEquipmentTypes = Array.from(new Set([
+    ...EQUIPMENT_TYPES,
+    ...(formData.equipmentType ? [formData.equipmentType] : [])
+  ]));
+
+  const allProcessors = Array.from(new Set([
+    ...PROCESSORS,
+    ...(formData.processor ? [formData.processor] : [])
+  ]));
+
+  const allGenerations = Array.from(new Set([
+    ...GENERATIONS,
+    ...(formData.generation ? [formData.generation] : [])
+  ])).sort((a, b) => Number(a) - Number(b));
+
+  const allRamOptions = Array.from(new Set([
+    ...RAM_OPTIONS,
+    ...(formData.ramGb ? [formData.ramGb] : [])
+  ])).sort((a, b) => Number(a) - Number(b));
+
+  const allSsdOptions = Array.from(new Set([
+    ...SSD_OPTIONS,
+    ...(formData.ssdGb !== undefined && formData.ssdGb !== null ? [formData.ssdGb] : [])
+  ])).sort((a, b) => Number(a) - Number(b));
+
+  const allHddOptions = Array.from(new Set([
+    ...HDD_OPTIONS,
+    ...(formData.hddGb !== undefined && formData.hddGb !== null ? [formData.hddGb] : [])
+  ])).sort((a, b) => Number(a) - Number(b));
 
   const handleAddBaseUnit = async () => {
     if (!newBaseName.trim()) return;
@@ -165,10 +200,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const allBaseUnits = Array.from(new Set([
-    ...BASE_UNITS,
-    ...customBaseUnits.map(b => b.name)
-  ]));
+
 
   const win10Eligible = calcWin10(formData.processor, formData.generation, formData.ramGb);
   const win11Eligible = calcWin11(formData.processor, formData.generation, formData.ramGb, formData.ssdGb, formData.hddGb);
@@ -433,7 +465,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
               >
-                {EQUIPMENT_TYPES.map((type) => (
+                {allEquipmentTypes.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
@@ -499,7 +531,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setFormData({ ...formData, processor: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {PROCESSORS.map((proc) => (
+                {allProcessors.map((proc) => (
                   <option key={proc} value={proc}>{proc}</option>
                 ))}
               </select>
@@ -512,7 +544,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setFormData({ ...formData, generation: parseInt(e.target.value) })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {GENERATIONS.map((gen) => (
+                {allGenerations.map((gen) => (
                   <option key={gen} value={gen}>{gen}th Gen</option>
                 ))}
               </select>
@@ -525,7 +557,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setFormData({ ...formData, ramGb: parseInt(e.target.value) })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {RAM_OPTIONS.map((ram) => (
+                {allRamOptions.map((ram) => (
                   <option key={ram} value={ram}>{ram} GB</option>
                 ))}
               </select>
@@ -538,7 +570,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setFormData({ ...formData, ssdGb: parseInt(e.target.value) })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {SSD_OPTIONS.map((ssd) => (
+                {allSsdOptions.map((ssd) => (
                   <option key={ssd} value={ssd}>{ssd === 0 ? 'None' : `${ssd} GB`}</option>
                 ))}
               </select>
@@ -551,7 +583,7 @@ export default function EditEquipmentPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setFormData({ ...formData, hddGb: parseInt(e.target.value) })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {HDD_OPTIONS.map((hdd) => (
+                {allHddOptions.map((hdd) => (
                   <option key={hdd} value={hdd}>{hdd === 0 ? 'None' : `${hdd} GB`}</option>
                 ))}
               </select>

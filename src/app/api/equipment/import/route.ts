@@ -54,6 +54,7 @@ export async function POST(request: Request) {
 
       recordsToInsert.push({
         sn,
+        baseUnit: cleanString(raw.baseUnit || raw.base) || 'Air HQ',
         directorate: cleanString(raw.directorate) || 'General',
         equipmentType: cleanString(raw.equipmentType || raw.type) || 'Desktop',
         brandModel: cleanString(raw.brandModel || raw.model),

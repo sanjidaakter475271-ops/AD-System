@@ -131,6 +131,9 @@ export default function ExcelImportPage() {
             const hddGb = parseNum(row.HDD || row.HDD_GB || row.hdd);
             const ssdGb = parseNum(row.SSD || row.SSD_GB || row.ssd);
 
+            const baseUnit = cleanString(row.Base || row['Base Unit'] || row.baseUnit || row.base_unit) || 'Air HQ';
+            const location = cleanString(row['Present Loc'] || row.Location || row.location);
+
             const remarks = String(row.Remarks || row.remarks || '');
             let issueStatus = 'Not Issued';
             if (remarks.toLowerCase().includes('issued')) {
@@ -139,6 +142,7 @@ export default function ExcelImportPage() {
 
             return {
               sn: snParsed || (idx + 1),
+              baseUnit,
               directorate: cleanString(row.Dte || row.Directorate || row.directorate || row.Dir) || 'General',
               equipmentType: cleanString(row['Types of Eqpt'] || row.Type || row.type || row['Equipment Type'] || row.equipmentType) || 'Desktop',
               brandModel: cleanString(row['Brand & Model'] || row.BrandModel || row.model || row.brandModel),
@@ -149,7 +153,7 @@ export default function ExcelImportPage() {
               ssdGb,
               hddGb,
               status: cleanString(row.Status || row.status) || 'Svc',
-              location: cleanString(row['Present Loc'] || row.Location || row.location),
+              location,
               issueStatus,
               win10Remark: cleanString(row['Win 10 RMK'] || row.win10Remark),
             };
@@ -301,6 +305,7 @@ export default function ExcelImportPage() {
               <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px] sticky top-0">
                 <tr>
                   <th className="p-3">SN</th>
+                  <th className="p-3">Base Unit</th>
                   <th className="p-3">Directorate</th>
                   <th className="p-3">Type</th>
                   <th className="p-3">Brand & Model</th>
@@ -309,6 +314,7 @@ export default function ExcelImportPage() {
                   <th className="p-3">Gen</th>
                   <th className="p-3">RAM</th>
                   <th className="p-3">Storage</th>
+                  <th className="p-3">Location</th>
                   <th className="p-3">Status</th>
                 </tr>
               </thead>
@@ -316,6 +322,7 @@ export default function ExcelImportPage() {
                 {parsedData.map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
                     <td className="p-3 font-bold text-emerald-400">#{item.sn}</td>
+                    <td className="p-3 text-slate-300">{item.baseUnit}</td>
                     <td className="p-3 font-medium text-white">{item.directorate}</td>
                     <td className="p-3">{item.equipmentType}</td>
                     <td className="p-3 text-slate-300">{item.brandModel || '—'}</td>
@@ -326,6 +333,7 @@ export default function ExcelImportPage() {
                     <td className="p-3">
                       {item.ssdGb > 0 ? `${item.ssdGb}GB SSD` : ''} {item.hddGb > 0 ? `${item.hddGb}GB HDD` : ''}
                     </td>
+                    <td className="p-3 text-slate-300">{item.location || '—'}</td>
                     <td className="p-3">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-[10px]">
                         {item.status}

@@ -340,6 +340,173 @@ function NewPcPanel({
   );
 }
 
+// ─── Batch Withdrawal Side Panel ─────────────────────────────────────────────
+function BatchWithdrawalModal({
+  pcs,
+  onClose,
+  onSuccess,
+}: {
+  pcs: PC[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [letterRef, setLetterRef] = useState('');
+  const [letterAuthority, setLetterAuthority] = useState('');
+  const [withdrawnBy, setWithdrawnBy] = useState('');
+  const [reason, setReason] = useState('Not Eligible for Windows 10');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!letterRef.trim() || !letterAuthority.trim()) {
+      setError('Letter Reference and Letter Authority are required!');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/withdraw-issue/bulk-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          letterRef,
+          letterAuthority,
+          withdrawnBy,
+          reason,
+          items: pcs.map(p => ({
+            equipmentId: p.id,
+            location: p.location || p.directorate,
+            baseUnit: p.baseUnit,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to process withdrawal');
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
+      <div className="relative z-50 w-full max-w-md bg-slate-900 border-l border-slate-700 h-full overflow-y-auto p-6 space-y-5 shadow-2xl flex flex-col justify-between">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <PackageMinus className="w-5 h-5 text-amber-400" />
+                Withdrawal Authorization ({pcs.length} PC{pcs.length > 1 ? 's' : ''})
+              </h2>
+              <p className="text-xs text-slate-400">Fill in letter reference details to authorize withdrawal</p>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form id="withdrawal-panel-form" onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5 text-amber-400" /> Letter Reference *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. AHQ/AD/2050/2026"
+                value={letterRef}
+                onChange={e => setLetterRef(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> Letter Authority *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Air Cdre Md. Kamal"
+                value={letterAuthority}
+                onChange={e => setLetterAuthority(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Withdrawn By</label>
+              <input
+                type="text"
+                placeholder="Officer / Staff Name"
+                value={withdrawnBy}
+                onChange={e => setWithdrawnBy(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Reason for Withdrawal</label>
+              <input
+                type="text"
+                placeholder="Reason"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-3 max-h-48 overflow-y-auto space-y-1.5">
+              <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+                Selected PCs to Withdraw ({pcs.length})
+              </p>
+              {pcs.map(p => (
+                <div key={p.id} className="flex justify-between items-center text-xs text-slate-300 py-1 border-b border-slate-700/50 last:border-0">
+                  <span className="font-semibold text-sky-300">SN #{p.sn} <span className="text-slate-400 font-normal">({p.directorate})</span></span>
+                  <span className="text-slate-400 text-[11px]">{p.equipmentType} | {p.processor || '—'}</span>
+                </div>
+              ))}
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs">
+                {error}
+              </div>
+            )}
+          </form>
+        </div>
+
+        <div className="flex gap-2 justify-end pt-3 border-t border-slate-800 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="withdrawal-panel-form"
+            disabled={submitting}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold transition-all shadow-lg shadow-amber-600/20 disabled:opacity-50"
+          >
+            {submitting ? 'Processing...' : 'Confirm & Authorize Withdrawal'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function WithdrawIssuePage() {
   const [activeTab, setActiveTab] = useState<'inventory' | 'withdrawal' | 'bulk-issue'>('inventory');
@@ -363,7 +530,8 @@ export default function WithdrawIssuePage() {
   const [wdLoading, setWdLoading] = useState(true);
   const [wdFilterBase, setWdFilterBase] = useState('');
   const [wdFilterOffice, setWdFilterOffice] = useState('');
-  const [selectedWdIds, setSelectedWdIds] = useState<number[]>([]);
+  const [selectedWdPcIds, setSelectedWdPcIds] = useState<number[]>([]);
+  const [showBatchWdModal, setShowBatchWdModal] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Bulk Issue Tab State
@@ -449,15 +617,15 @@ export default function WithdrawIssuePage() {
   const countIssued = inventory.filter(p => p.issueStatus === 'Issued').length;
 
   const handleProcessBatchWithdrawal = async () => {
-    if (selectedWdIds.length === 0) return;
+    if (selectedWdPcIds.length === 0) return;
     try {
       const res = await fetch('/api/withdraw-issue/withdrawal/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalIds: selectedWdIds }),
+        body: JSON.stringify({ withdrawalIds: selectedWdPcIds }),
       });
       if (!res.ok) throw new Error('Failed to process batch withdrawal');
-      setSelectedWdIds([]);
+      setSelectedWdPcIds([]);
       fetchWithdrawals();
       fetchInventory();
       alert('Batch withdrawal processed! Old PCs moved to Old PC Store.');
@@ -756,28 +924,166 @@ export default function WithdrawIssuePage() {
 
       {/* ── WITHDRAWAL TAB ────────────────────────────────────────────────── */}
       {activeTab === 'withdrawal' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <select value={wdFilterBase} onChange={e => { setWdFilterBase(e.target.value); setWdFilterOffice(''); }} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
-              <option value="">All Base / Units</option>
-              {allBaseUnits.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select value={wdFilterOffice} onChange={e => setWdFilterOffice(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
-              <option value="">All Offices</option>
-              {getOfficesForBase(wdFilterBase).map((o: string) => <option key={o} value={o}>{o}</option>)}
-            </select>
-            <button onClick={fetchWithdrawals} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300"><RefreshCw className="w-4 h-4" /></button>
+        <div className="space-y-6">
+          {/* Top Filters & Batch Action Bar */}
+          <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-xl">
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={wdFilterBase}
+                onChange={e => { setWdFilterBase(e.target.value); setWdFilterOffice(''); setSelectedWdPcIds([]); }}
+                className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              >
+                <option value="">All Base / Units</option>
+                {allBaseUnits.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+
+              <select
+                value={wdFilterOffice}
+                onChange={e => { setWdFilterOffice(e.target.value); setSelectedWdPcIds([]); }}
+                className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              >
+                <option value="">All Offices / Directorates</option>
+                {getOfficesForBase(wdFilterBase).map((o: string) => <option key={o} value={o}>{o}</option>)}
+              </select>
+
+              <button
+                onClick={() => { fetchInventory(); fetchWithdrawals(); }}
+                className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-all"
+                title="Refresh List"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            {selectedWdPcIds.length > 0 && (
+              <button
+                onClick={() => setShowBatchWdModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold shadow-lg shadow-amber-600/20 transition-all animate-pulse"
+              >
+                <FileText className="w-4 h-4" />
+                Authorize &amp; Process Withdrawal ({selectedWdPcIds.length} Selected)
+              </button>
+            )}
           </div>
 
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-amber-500/5">
-              <div className="flex items-center gap-2">
-                <PackageMinus className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-amber-300 uppercase">Withdrawn PCs Log</span>
+          {/* Not Eligible PCs List Available for Withdrawal */}
+          {(() => {
+            const notEligiblePcsToWithdraw = inventory.filter(p => {
+              if (p.issueStatus === 'Withdrawn' || p.issueStatus === 'Withdrawn & Issued') return false;
+              if (wdFilterBase && p.baseUnit !== wdFilterBase) return false;
+              if (wdFilterOffice && p.directorate !== wdFilterOffice) return false;
+              return true;
+            });
+
+            const selectedPcsObjects = notEligiblePcsToWithdraw.filter(p => selectedWdPcIds.includes(p.id));
+
+            return (
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden space-y-0">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-amber-500/10">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4.5 h-4.5 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">
+                      Not Eligible PCs Ready For Withdrawal ({notEligiblePcsToWithdraw.length})
+                    </span>
+                  </div>
+                  {selectedWdPcIds.length > 0 && (
+                    <span className="text-xs text-amber-400 font-semibold">
+                      {selectedWdPcIds.length} of {notEligiblePcsToWithdraw.length} selected
+                    </span>
+                  )}
+                </div>
+
+                {notEligiblePcsToWithdraw.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400 space-y-2">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-300">No PCs pending withdrawal in this filter</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-200">
+                      <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                        <tr>
+                          <th className="p-3.5 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={notEligiblePcsToWithdraw.length > 0 && selectedWdPcIds.length === notEligiblePcsToWithdraw.length}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setSelectedWdPcIds(notEligiblePcsToWithdraw.map(p => p.id));
+                                } else {
+                                  setSelectedWdPcIds([]);
+                                }
+                              }}
+                              className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                              title="Select all for withdrawal"
+                            />
+                          </th>
+                          <th className="p-3.5">SN</th>
+                          <th className="p-3.5">Office / Base</th>
+                          <th className="p-3.5">Section</th>
+                          <th className="p-3.5">Type</th>
+                          <th className="p-3.5">Brand / Serial</th>
+                          <th className="p-3.5">Specs</th>
+                          <th className="p-3.5">Win 10</th>
+                          <th className="p-3.5">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/80">
+                        {notEligiblePcsToWithdraw.map(p => {
+                          const isSelected = selectedWdPcIds.includes(p.id);
+                          return (
+                            <tr key={p.id} className={`hover:bg-slate-800/40 transition-colors ${isSelected ? 'bg-amber-950/20' : ''}`}>
+                              <td className="p-3.5 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    setSelectedWdPcIds(prev =>
+                                      prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                    );
+                                  }}
+                                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-3.5 font-bold text-amber-400">#{p.sn}</td>
+                              <td className="p-3.5">
+                                <div className="font-semibold text-white">{p.directorate}</div>
+                                <div className="text-[10px] text-slate-400">{p.baseUnit}</div>
+                              </td>
+                              <td className="p-3.5 text-slate-300">{p.location || '—'}</td>
+                              <td className="p-3.5 text-indigo-300 font-semibold">{p.equipmentType}</td>
+                              <td className="p-3.5">
+                                <div>{p.brandModel || '—'}</div>
+                                <div className="font-mono text-[10px] text-slate-400">{p.serialNo || '—'}</div>
+                              </td>
+                              <td className="p-3.5 text-slate-300">
+                                <div>{p.processor ? `${p.processor} (${p.generation || '?'}th Gen)` : '—'}</div>
+                                <div className="text-[10px] text-slate-400">{p.ramGb ? `${p.ramGb}GB` : ''} {p.storageType ? `| ${p.storageType}` : ''}</div>
+                              </td>
+                              <td className="p-3.5"><span className="text-rose-400 font-bold text-[10px]">{p.win10Eligible || 'N/A'}</span></td>
+                              <td className="p-3.5">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  {p.issueStatus || 'Pending Withdrawal'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              {selectedWdIds.length > 0 && (
-                <button onClick={handleProcessBatchWithdrawal} className="px-3 py-1 rounded-xl bg-amber-600 text-white text-xs font-bold">Process Batch Withdrawal</button>
-              )}
+            );
+          })()}
+
+          {/* Withdrawn Log / History Table */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden mt-6">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800 bg-slate-800/40">
+              <Clock className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">
+                Completed Withdrawal Log History ({withdrawals.length})
+              </span>
             </div>
 
             <div className="overflow-x-auto">
@@ -786,25 +1092,44 @@ export default function WithdrawIssuePage() {
                   <tr>
                     <th className="p-3.5">Old PC (SN)</th>
                     <th className="p-3.5">Withdrawn From</th>
-                    <th className="p-3.5">New PC Issued</th>
                     <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Withdrawn By</th>
                     <th className="p-3.5">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
-                  {withdrawals.map(wd => (
-                    <tr key={wd.id} className="hover:bg-slate-800/40">
-                      <td className="p-3.5 font-bold text-amber-400">#{wd.equipment.sn}</td>
-                      <td className="p-3.5">{wd.withdrawnFrom} ({wd.withdrawnBase})</td>
-                      <td className="p-3.5">{wd.issueRecord?.equipment ? `SN #${wd.issueRecord.equipment.sn} (${wd.issueRecord.issuedTo})` : '—'}</td>
-                      <td className="p-3.5">{new Date(wd.withdrawnAt).toLocaleDateString('en-GB')}</td>
-                      <td className="p-3.5 text-slate-400">{wd.reason || '—'}</td>
+                  {withdrawals.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-500">No withdrawal records found</td>
                     </tr>
-                  ))}
+                  ) : (
+                    withdrawals.map(wd => (
+                      <tr key={wd.id} className="hover:bg-slate-800/40">
+                        <td className="p-3.5 font-bold text-amber-400">#{wd.equipment.sn}</td>
+                        <td className="p-3.5">{wd.withdrawnFrom} ({wd.withdrawnBase})</td>
+                        <td className="p-3.5">{new Date(wd.withdrawnAt).toLocaleDateString('en-GB')}</td>
+                        <td className="p-3.5 text-slate-300">{wd.withdrawnBy || '—'}</td>
+                        <td className="p-3.5 text-slate-400">{wd.reason || '—'}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Render Batch Withdrawal Modal */}
+          {showBatchWdModal && (
+            <BatchWithdrawalModal
+              pcs={inventory.filter(p => selectedWdPcIds.includes(p.id))}
+              onClose={() => setShowBatchWdModal(false)}
+              onSuccess={() => {
+                setSelectedWdPcIds([]);
+                fetchInventory();
+                fetchWithdrawals();
+              }}
+            />
+          )}
         </div>
       )}
 
