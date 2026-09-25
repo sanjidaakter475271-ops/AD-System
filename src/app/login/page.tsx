@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { 
-  Plane, 
   User, 
   Key, 
   AlertCircle, 
@@ -21,6 +20,7 @@ export default function LoginPage() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -55,12 +55,6 @@ export default function LoginPage() {
       setErrorMessage('Sign in failed. Please try again.');
       setLoading(false);
     }
-  };
-
-  const fillQuickCredentials = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    setErrorMessage('');
   };
 
   return (
@@ -157,32 +151,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Quick Demo Fill Buttons */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
-              Quick Demo Login (Click to Fill)
-            </div>
-            <div className="flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => fillQuickCredentials('admin', 'admin123')}
-                className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-semibold transition-all flex items-center gap-1.5"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                Admin (admin)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillQuickCredentials('user', 'user123')}
-                className="px-3.5 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 text-xs font-semibold transition-all flex items-center gap-1.5"
-              >
-                <User className="w-3.5 h-3.5 text-blue-400" />
-                User (user)
-              </button>
-            </div>
-          </div>
-
           {/* Form */}
           <form onSubmit={handleLogin} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-5">
             
@@ -223,6 +191,18 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 bg-slate-800 border-slate-700 rounded text-sky-500 focus:ring-sky-500"
+                />
+                Remember me
+              </label>
             </div>
 
             <button

@@ -87,20 +87,73 @@ export default function ExcelImportPage() {
         }
 
         // Map flexible Excel column names to internal fields
-        const formatted = rawJson.map((row, idx) => ({
-          sn: row.SN || row.sn || row.Serial || (idx + 1),
-          directorate: row.Directorate || row.directorate || row.Dir || 'General',
-          equipmentType: row.Type || row.type || row['Equipment Type'] || row.equipmentType || 'Desktop',
-          brandModel: row.BrandModel || row.model || row['Brand & Model'] || row.brandModel || null,
-          serialNo: row.SerialNo || row.serial || row['Serial No'] || row.serialNo || null,
-          processor: row.Processor || row.processor || null,
-          generation: row.Generation || row.generation || row.Gen ? parseInt(row.Generation || row.generation || row.Gen) : null,
-          ramGb: row.RAM_GB || row.ram || row.RAM ? parseInt(row.RAM_GB || row.ram || row.RAM) : null,
-          ssdGb: row.SSD_GB || row.ssd || row.SSD ? parseInt(row.SSD_GB || row.ssd || row.SSD) : 0,
-          hddGb: row.HDD_GB || row.hdd || row.HDD ? parseInt(row.HDD_GB || row.hdd || row.HDD) : 0,
-          status: row.Status || row.status || 'Svc',
-          location: row.Location || row.location || null,
-        }));
+        const formatted = rawJson
+          .filter((row) => {
+            const snVal = row['S/N'] || row.SN || row.sn || row.Serial;
+            const dteVal = row.Dte || row.Directorate || row.directorate;
+            const typeVal = row['Types of Eqpt'] || row.Type || row.type;
+            return snVal || dteVal || typeVal;
+          })
+          .map((row, idx) => {
+            const parseNum = (val: any) => {
+              if (!val || typeof val === 'object' || String(val).includes('[object')) return 0;
+              const strVal = String(val).trim();
+              if (strVal.toLowerCase().includes('tb')) {
+                const match = strVal.match(/([\d.]+)/);
+                return match ? Math.round(parseFloat(match[1]) * 1024) : 0;
+              }
+              const match = strVal.match(/([\d.]+)/);
+              return match ? parseInt(match[1]) : 0;
+            };
+
+            const parseGen = (val: any) => {
+              if (!val) return null;
+              const str = String(val);
+              const match = str.match(/(\d+)(?:st|nd|rd|th)?\s*gen/i) || str.match(/gen\s*(\d+)/i) || str.match(/(\d+)/);
+              return match ? parseInt(match[1]) : null;
+            };
+
+            const cleanString = (val: any) => {
+              if (!val || typeof val === 'object' || String(val).includes('[object')) return null;
+              const str = String(val).trim();
+              if (['na', 'n/a', 'u/s', 'none', '-'].includes(str.toLowerCase())) return null;
+              return str;
+            };
+
+            const rawSn = row['S/N'] || row.SN || row.sn || row.Serial;
+            const snParsed = parseNum(rawSn);
+
+            const rawCpu = row.CPU || row.Processor || row.processor || row['Processor, RAM & HDD/SSD'];
+            const processor = cleanString(rawCpu);
+            const generation = parseGen(row.Generation || row.generation || row.Gen || rawCpu);
+
+            const ramGb = parseNum(row.RAM || row.RAM_GB || row.ram);
+            const hddGb = parseNum(row.HDD || row.HDD_GB || row.hdd);
+            const ssdGb = parseNum(row.SSD || row.SSD_GB || row.ssd);
+
+            const remarks = String(row.Remarks || row.remarks || '');
+            let issueStatus = 'Not Issued';
+            if (remarks.toLowerCase().includes('issued')) {
+              issueStatus = 'Issued';
+            }
+
+            return {
+              sn: snParsed || (idx + 1),
+              directorate: cleanString(row.Dte || row.Directorate || row.directorate || row.Dir) || 'General',
+              equipmentType: cleanString(row['Types of Eqpt'] || row.Type || row.type || row['Equipment Type'] || row.equipmentType) || 'Desktop',
+              brandModel: cleanString(row['Brand & Model'] || row.BrandModel || row.model || row.brandModel),
+              serialNo: cleanString(row['Serial No'] || row.SerialNo || row.serial || row.serialNo),
+              processor,
+              generation,
+              ramGb: ramGb > 0 ? ramGb : null,
+              ssdGb,
+              hddGb,
+              status: cleanString(row.Status || row.status) || 'Svc',
+              location: cleanString(row['Present Loc'] || row.Location || row.location),
+              issueStatus,
+              win10Remark: cleanString(row['Win 10 RMK'] || row.win10Remark),
+            };
+          });
 
         setParsedData(formatted);
       } catch (err: any) {

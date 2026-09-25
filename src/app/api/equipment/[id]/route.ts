@@ -175,6 +175,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Forbidden: You can only delete equipment in your base unit' }, { status: 403 });
     }
 
+    // Delete dependent records first to prevent orphan rows when foreign key CASCADE is absent in DB
+    await prisma.$executeRaw`DELETE FROM "public"."upgradation_records" WHERE "equipment_id" = ${safeId}::int8`;
+    await prisma.$executeRaw`DELETE FROM "public"."withdrawal_records" WHERE "equipment_id" = ${safeId}::int8`;
+    await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "equipment_id" = ${safeId}::int8`;
+    await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "replaced_equipment_id" = ${safeId}::int8`;
+
     await prisma.$executeRaw`
       DELETE FROM "public"."equipment" WHERE "id" = ${safeId}::int8
     `;

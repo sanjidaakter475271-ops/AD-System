@@ -48,6 +48,11 @@ export default async function DashboardPage() {
     if (res && res.ok) {
       stats = await res.json();
     } else {
+      // Clean up any orphan records
+      await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");`;
+      await prisma.$executeRaw`DELETE FROM "public"."withdrawal_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");`;
+      await prisma.$executeRaw`DELETE FROM "public"."upgradation_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");`;
+
       // Fallback: direct DB queries
       const [
         total, svc, unsvc, repair, rs,

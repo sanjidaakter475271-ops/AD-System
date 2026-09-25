@@ -46,6 +46,17 @@ export async function GET() {
     const distributed = await prisma.upgradationRecord.count({ where: { isDistributed: true } });
     const pendingUpgrade = await prisma.upgradationRecord.count({ where: { isUpgraded: false } });
 
+    // ── Auto-clean any orphan records (where underlying equipment was deleted) ──
+    await prisma.$executeRaw`
+      DELETE FROM "public"."issue_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");
+    `;
+    await prisma.$executeRaw`
+      DELETE FROM "public"."withdrawal_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");
+    `;
+    await prisma.$executeRaw`
+      DELETE FROM "public"."upgradation_records" WHERE "equipment_id" NOT IN (SELECT "id" FROM "public"."equipment");
+    `;
+
     // ── Recent 5 issue records ─────────────────────────────────────────────
     const recentIssues = await prisma.issueRecord.findMany({
       take: 5,

@@ -16,12 +16,37 @@ export async function POST(request: Request) {
 
     for (const raw of items) {
       currentSn += 1;
+      const parseNum = (val: any) => {
+        if (!val || typeof val === 'object' || String(val).includes('[object')) return 0;
+        const strVal = String(val).trim();
+        if (strVal.toLowerCase().includes('tb')) {
+          const match = strVal.match(/([\d.]+)/);
+          return match ? Math.round(parseFloat(match[1]) * 1024) : 0;
+        }
+        const match = strVal.match(/([\d.]+)/);
+        return match ? parseInt(match[1]) : 0;
+      };
+
+      const parseGen = (val: any) => {
+        if (!val) return null;
+        const str = String(val);
+        const match = str.match(/(\d+)(?:st|nd|rd|th)?\s*gen/i) || str.match(/gen\s*(\d+)/i) || str.match(/(\d+)/);
+        return match ? parseInt(match[1]) : null;
+      };
+
+      const cleanString = (val: any) => {
+        if (!val || typeof val === 'object' || String(val).includes('[object')) return null;
+        const str = String(val).trim();
+        if (['na', 'n/a', 'u/s', 'none', '-'].includes(str.toLowerCase())) return null;
+        return str;
+      };
+
       const sn = raw.sn ? parseInt(raw.sn) : currentSn;
-      const processor = raw.processor ? String(raw.processor) : null;
-      const generation = raw.generation ? parseInt(raw.generation) : null;
-      const ramGb = raw.ramGb ? parseInt(raw.ramGb) : null;
-      const ssdGb = raw.ssdGb ? parseInt(raw.ssdGb) : 0;
-      const hddGb = raw.hddGb ? parseInt(raw.hddGb) : 0;
+      const processor = cleanString(raw.processor);
+      const generation = parseGen(raw.generation || raw.processor);
+      const ramGb = parseNum(raw.ramGb) || null;
+      const ssdGb = parseNum(raw.ssdGb);
+      const hddGb = parseNum(raw.hddGb);
 
       const win10Eligible = raw.win10Eligible || calcWin10(processor, generation, ramGb);
       const win11Eligible = raw.win11Eligible || calcWin11(processor, generation, ramGb, ssdGb, hddGb);
@@ -29,20 +54,20 @@ export async function POST(request: Request) {
 
       recordsToInsert.push({
         sn,
-        directorate: raw.directorate || 'General',
-        equipmentType: raw.equipmentType || raw.type || 'Desktop',
-        brandModel: raw.brandModel || raw.model || null,
-        serialNo: raw.serialNo || raw.sn_serial || null,
+        directorate: cleanString(raw.directorate) || 'General',
+        equipmentType: cleanString(raw.equipmentType || raw.type) || 'Desktop',
+        brandModel: cleanString(raw.brandModel || raw.model),
+        serialNo: cleanString(raw.serialNo || raw.sn_serial),
         processor,
         generation,
         ramGb,
         ssdGb,
         hddGb,
         storageType,
-        status: raw.status || 'Svc',
-        location: raw.location || null,
-        issueStatus: raw.issueStatus || 'Not Issued',
-        win10Remark: raw.win10Remark || null,
+        status: cleanString(raw.status) || 'Svc',
+        location: cleanString(raw.location),
+        issueStatus: cleanString(raw.issueStatus) || 'Not Issued',
+        win10Remark: cleanString(raw.win10Remark),
         win10Eligible,
         win11Eligible,
       });

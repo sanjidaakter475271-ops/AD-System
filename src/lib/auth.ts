@@ -3,8 +3,15 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error(
+    'NEXTAUTH_SECRET is not set. Refusing to start with an insecure default. ' +
+      'Set it in .env (see .env.example).'
+  );
+}
+
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || 'air-hq-inventory-super-secret-key-2026-baf-secure',
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -24,13 +31,11 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!user) {
-            console.log(`[AUTH] User not found: ${cleanUsername}`);
             return null;
           }
 
           const isValidPassword = await bcrypt.compare(credentials.password, user.password);
           if (!isValidPassword) {
-            console.log(`[AUTH] Invalid password for user: ${cleanUsername}`);
             return null;
           }
 
