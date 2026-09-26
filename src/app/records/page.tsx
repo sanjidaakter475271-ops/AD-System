@@ -20,6 +20,7 @@ import {
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
 import { Pagination } from '@/components/ui/Pagination';
 import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
+import { formatEquipmentCode } from '@/lib/code';
 
 type IssueRecord = {
   id: number;
@@ -359,9 +360,9 @@ export default function RecordsPage() {
                     <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="p-3.5 text-slate-500 font-mono">{(currentPage - 1) * pageSize + idx + 1}</td>
                       <td className="p-3.5">
-                        <div className="font-bold text-sky-400">SN #{rec.equipment?.sn}</div>
+                        <div className="font-extrabold text-sky-400 font-mono tracking-wide">{formatEquipmentCode(rec.issuedBase, rec.equipment?.sn)}</div>
+                        <div className="text-[10px] text-slate-500 font-semibold">SN #{rec.equipment?.sn}</div>
                         <div className="text-[10px] text-slate-400">{rec.equipment?.equipmentType} | {rec.equipment?.brandModel || 'N/A'}</div>
-                        <div className="text-[10px] text-slate-500">{rec.equipment?.processor} ({rec.equipment?.generation}th)</div>
                       </td>
                       <td className="p-3.5">
                         <div className="font-semibold text-white">{rec.issuedTo}</div>
@@ -414,7 +415,8 @@ export default function RecordsPage() {
                       <td className="p-3.5">
                         {rec.replacedEquipment ? (
                           <div>
-                            <div className="font-bold text-rose-400">SN #{rec.replacedEquipment.sn}</div>
+                            <div className="font-extrabold text-rose-400 font-mono tracking-wide">{formatEquipmentCode(rec.withdrawalRecord?.withdrawnBase || rec.issuedBase, rec.replacedEquipment.sn)}</div>
+                            <div className="text-[10px] text-slate-500 font-semibold">SN #{rec.replacedEquipment.sn}</div>
                             <div className="text-[10px] text-slate-400">{rec.replacedEquipment.brandModel || 'N/A'}</div>
                           </div>
                         ) : (

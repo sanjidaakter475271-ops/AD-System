@@ -20,6 +20,7 @@ import {
 import { BASE_UNITS, DIRECTORATES, EQUIPMENT_TYPES, STATUS_OPTIONS, AD_STATUS_OPTIONS } from '@/lib/constants';
 import { Pagination } from '@/components/ui/Pagination';
 import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
+import { formatEquipmentCode } from '@/lib/code';
 
 export default function EquipmentPage() {
   const [equipment, setEquipment] = useState<any[]>([]);
@@ -377,7 +378,7 @@ export default function EquipmentPage() {
                         title="Select all equipment"
                       />
                     </th>
-                    <th className="p-3.5">SN</th>
+                    <th className="p-3.5">System Code (CU) / SN</th>
                     <th className="p-3.5">Base & Directorate</th>
                     <th className="p-3.5">Type & PC Status</th>
                     <th className="p-3.5">Brand / Serial</th>
@@ -399,7 +400,10 @@ export default function EquipmentPage() {
                           className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
                         />
                       </td>
-                      <td className="p-3.5 font-bold text-sky-400">#{item.sn}</td>
+                      <td className="p-3.5">
+                        <div className="font-extrabold text-sky-400 font-mono tracking-wide">{formatEquipmentCode(item.baseUnit, item.sn)}</div>
+                        <div className="text-[10px] text-slate-500 font-semibold">SN #{item.sn}</div>
+                      </td>
                       <td className="p-3.5">
                         <div className="font-semibold text-white">{item.directorate}</div>
                         <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">

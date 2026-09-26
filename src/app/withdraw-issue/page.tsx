@@ -10,6 +10,7 @@ import {
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
 import { Pagination } from '@/components/ui/Pagination';
 import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
+import { formatEquipmentCode } from '@/lib/code';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PC = {
@@ -941,7 +942,10 @@ export default function WithdrawIssuePage() {
                         .slice((invPage - 1) * invPageSize, invPage * invPageSize)
                         .map(item => (
                         <tr key={item.id} className="hover:bg-slate-800/40">
-                          <td className="p-3.5 font-bold text-rose-400">#{item.sn}</td>
+                          <td className="p-3.5 font-bold text-rose-400">
+                            <div className="font-extrabold text-sky-400 font-mono tracking-wide">{formatEquipmentCode(item.baseUnit, item.sn)}</div>
+                            <div className="text-[10px] text-slate-500 font-semibold">SN #{item.sn}</div>
+                          </td>
                           <td className="p-3.5">
                             <div className="font-semibold text-white">{item.directorate}</div>
                             <div className="text-[10px] text-slate-400">{item.baseUnit}</div>
@@ -1350,7 +1354,7 @@ export default function WithdrawIssuePage() {
                       </span>
                       {selectedNewPcObj && (
                         <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Selected: SN #{selectedNewPcObj.sn} ({selectedNewPcObj.equipmentType})
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Selected: {formatEquipmentCode(selectedNewPcObj.intendedBase || selectedNewPcObj.baseUnit || 'Air HQ', selectedNewPcObj.sn)} (SN #{selectedNewPcObj.sn} - {selectedNewPcObj.equipmentType})
                         </span>
                       )}
                     </div>
@@ -1386,7 +1390,7 @@ export default function WithdrawIssuePage() {
                         <option value="">-- Choose New PC --</option>
                         {availableNewPcs.map(p => (
                           <option key={p.id} value={p.id}>
-                            SN #{p.sn} | {p.brandModel || p.equipmentType} | Intended: {p.intendedOffice || 'Any'} ({p.intendedBase || 'Air HQ'})
+                            {formatEquipmentCode(p.intendedBase || p.baseUnit || 'Air HQ', p.sn)} (SN #{p.sn}) | {p.brandModel || p.equipmentType} | Intended: {p.intendedOffice || 'Any'} ({p.intendedBase || 'Air HQ'})
                           </option>
                         ))}
                       </select>
@@ -1463,7 +1467,7 @@ export default function WithdrawIssuePage() {
                           <option value="">-- Choose Not-Eligible Old PC --</option>
                           {displayOldPcs.map(p => (
                             <option key={p.id} value={p.id}>
-                              SN #{p.sn} | Sec: {p.location || 'Unassigned'} | {p.brandModel || p.equipmentType} | {p.processor ? `${p.processor} (${p.generation}th Gen)` : 'Specs N/A'}
+                              {formatEquipmentCode(p.baseUnit, p.sn)} (SN #{p.sn}) | Sec: {p.location || 'Unassigned'} | {p.brandModel || p.equipmentType} | {p.processor ? `${p.processor} (${p.generation}th Gen)` : 'Specs N/A'}
                             </option>
                           ))}
                         </select>

@@ -141,19 +141,19 @@ export default function ExcelImportPage() {
             const location = cleanString(row['Present Loc'] || row.Location || row.location);
 
             // PC Condition Detection (New vs Existing)
-            const conditionVal = String(
-              row['PC Condition'] || row['PC_Condition'] || row.Condition || row['New or Existing'] || row['New/Existing'] || row.IsNew || row.isNewPc || ''
+            const typeCol = String(
+              row['PC Condition'] || row['PC_Condition'] || row.Condition || row['New or Existing'] || row['New/Existing'] || row.IsNew || row.isNewPc || row.Type || row.type || ''
             ).trim().toLowerCase();
 
             let isNewPc = false;
-            if (['new', 'brand new', 'fresh', 'yes', 'true', '1'].includes(conditionVal)) {
+            if (['new', 'brand new', 'fresh', 'yes', 'true', '1'].includes(typeCol)) {
               isNewPc = true;
-            } else if (['existing', 'old', 'issued', 'no', 'false', '0'].includes(conditionVal)) {
+            } else if (['existing', 'old', 'issued', 'no', 'false', '0'].includes(typeCol)) {
               isNewPc = false;
             } else {
-              // Smart Auto-detection if column is omitted
+              // Fallback check on remarks if condition column is missing
               const remarks = String(row.Remarks || row.remarks || '').toLowerCase();
-              if (remarks.includes('new') || remarks.includes('fresh') || location?.toLowerCase().includes('store')) {
+              if (remarks.includes('fresh issue') || remarks.includes('new pc')) {
                 isNewPc = true;
               }
             }

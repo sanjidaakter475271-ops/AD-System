@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { BASE_UNITS, DIRECTORATES, EQUIPMENT_TYPES, AD_STATUS_OPTIONS, STATUS_OPTIONS } from '@/lib/constants';
 import { Pagination } from '@/components/ui/Pagination';
 import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
+import { formatEquipmentCode } from '@/lib/code';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -202,7 +203,7 @@ function SearchContent() {
               <table className="w-full text-left text-xs text-slate-200">
                 <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px]">
                   <tr>
-                    <th className="p-3.5">SN</th>
+                    <th className="p-3.5">System Code (CU) / SN</th>
                     <th className="p-3.5">Base Unit & Directorate</th>
                     <th className="p-3.5">Type & PC Status</th>
                     <th className="p-3.5">Brand / Serial</th>
@@ -217,7 +218,10 @@ function SearchContent() {
                     .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                     .map((item) => (
                     <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="p-3.5 font-bold text-amber-400">#{item.sn}</td>
+                      <td className="p-3.5 font-bold text-amber-400">
+                        <div className="font-extrabold text-amber-400 font-mono tracking-wide">{formatEquipmentCode(item.baseUnit || 'Air HQ', item.sn)}</div>
+                        <div className="text-[10px] text-slate-500 font-semibold">SN #{item.sn}</div>
+                      </td>
                       <td className="p-3.5">
                         <div className="font-semibold text-white">{item.directorate}</div>
                         <div className="text-[10px] text-slate-400">{item.baseUnit || 'Air HQ'}</div>
