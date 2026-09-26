@@ -18,6 +18,8 @@ import {
   Users,
 } from 'lucide-react';
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
+import { Pagination } from '@/components/ui/Pagination';
+import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
 
 type IssueRecord = {
   id: number;
@@ -206,6 +208,8 @@ function RecordDetailModal({
 export default function RecordsPage() {
   const [records, setRecords] = useState<IssueRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [filterBase, setFilterBase] = useState('');
   const [filterOffice, setFilterOffice] = useState('');
   const [filterReplacement, setFilterReplacement] = useState('');
@@ -319,9 +323,9 @@ export default function RecordsPage() {
       {/* Records Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="p-10 text-center text-slate-400">
-            <div className="animate-spin w-7 h-7 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-2" />
-            Loading records...
+          <div className="p-8">
+            <LoadingSpinner label="Loading issue records..." size="lg" />
+            <TableSkeleton rows={6} cols={11} />
           </div>
         ) : records.length === 0 ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -330,136 +334,152 @@ export default function RecordsPage() {
             <p className="text-xs text-slate-500">Issue a PC from the Withdraw &amp; Issue page to see records here.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-200">
-              <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                <tr>
-                  <th className="p-3.5">#</th>
-                  <th className="p-3.5">Issued PC (New)</th>
-                  <th className="p-3.5">Section / PC#</th>
-                  <th className="p-3.5">Office / Base</th>
-                  <th className="p-3.5">Date</th>
-                  <th className="p-3.5">Letter Ref</th>
-                  <th className="p-3.5">Letter Authority</th>
-                  <th className="p-3.5">Type</th>
-                  <th className="p-3.5">Replaced PC</th>
-                  <th className="p-3.5">Withdrawn From</th>
-                  <th className="p-3.5">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {records.map((rec, idx) => (
-                  <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3.5 text-slate-500 font-mono">{idx + 1}</td>
-                    <td className="p-3.5">
-                      <div className="font-bold text-sky-400">SN #{rec.equipment?.sn}</div>
-                      <div className="text-[10px] text-slate-400">{rec.equipment?.equipmentType} | {rec.equipment?.brandModel || 'N/A'}</div>
-                      <div className="text-[10px] text-slate-500">{rec.equipment?.processor} ({rec.equipment?.generation}th)</div>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-white">{rec.issuedTo}</div>
-                      {rec.sectionLabel && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
-                          {rec.sectionLabel}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-white">{rec.issuedOffice}</div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Building className="w-3 h-3 text-slate-500" /> {rec.issuedBase}
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-slate-300 whitespace-nowrap">
-                      {new Date(rec.issuedAt).toLocaleDateString('en-GB', {
-                        day: '2-digit', month: 'short', year: 'numeric'
-                      })}
-                    </td>
-                    <td className="p-3.5">
-                      {rec.letterRef ? (
-                        <div className="flex items-center gap-1 text-amber-300 font-mono text-[11px]">
-                          <FileText className="w-3 h-3 shrink-0" /> {rec.letterRef}
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      {rec.letterAuthority ? (
-                        <div className="flex items-center gap-1 text-purple-300 text-[11px]">
-                          <ShieldCheck className="w-3 h-3 shrink-0" /> {rec.letterAuthority}
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      {rec.isReplacement ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-bold">
-                          <Repeat2 className="w-3 h-3" /> Replacement
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
-                          <PackageOpen className="w-3 h-3" /> Direct Issue
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      {rec.replacedEquipment ? (
-                        <div>
-                          <div className="font-bold text-rose-400">SN #{rec.replacedEquipment.sn}</div>
-                          <div className="text-[10px] text-slate-400">{rec.replacedEquipment.brandModel || 'N/A'}</div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    {/* Withdrawn From column — shows where old PC was taken from */}
-                    <td className="p-3.5">
-                      {rec.withdrawalRecord ? (
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-slate-300 font-semibold">{rec.withdrawalRecord.withdrawnFrom}</div>
-                          <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                            <Building className="w-3 h-3" /> {rec.withdrawalRecord.withdrawnBase}
-                          </div>
-                          {rec.withdrawalRecord.upgradation ? (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${
-                              rec.withdrawalRecord.upgradation.isDistributed
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                                : rec.withdrawalRecord.upgradation.isUpgraded
-                                ? 'bg-sky-500/20 text-sky-400 border-sky-500/30'
-                                : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                            }`}>
-                              {rec.withdrawalRecord.upgradation.isDistributed
-                                ? '✓ Distributed'
-                                : rec.withdrawalRecord.upgradation.isUpgraded
-                                ? '✓ Upgraded'
-                                : 'Pending'}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold">
-                              <AlertTriangle className="w-3 h-3" /> Pending
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    {/* Details Button */}
-                    <td className="p-3.5">
-                      <button
-                        onClick={() => setDetailRecord(rec)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 text-[11px] font-bold transition-all whitespace-nowrap"
-                      >
-                        <Info className="w-3 h-3" /> Details
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-200">
+                <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                  <tr>
+                    <th className="p-3.5">#</th>
+                    <th className="p-3.5">Issued PC (New)</th>
+                    <th className="p-3.5">Section / PC#</th>
+                    <th className="p-3.5">Office / Base</th>
+                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Letter Ref</th>
+                    <th className="p-3.5">Letter Authority</th>
+                    <th className="p-3.5">Type</th>
+                    <th className="p-3.5">Replaced PC</th>
+                    <th className="p-3.5">Withdrawn From</th>
+                    <th className="p-3.5">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {records
+                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                    .map((rec, idx) => (
+                    <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3.5 text-slate-500 font-mono">{(currentPage - 1) * pageSize + idx + 1}</td>
+                      <td className="p-3.5">
+                        <div className="font-bold text-sky-400">SN #{rec.equipment?.sn}</div>
+                        <div className="text-[10px] text-slate-400">{rec.equipment?.equipmentType} | {rec.equipment?.brandModel || 'N/A'}</div>
+                        <div className="text-[10px] text-slate-500">{rec.equipment?.processor} ({rec.equipment?.generation}th)</div>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-white">{rec.issuedTo}</div>
+                        {rec.sectionLabel && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                            {rec.sectionLabel}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-white">{rec.issuedOffice}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Building className="w-3 h-3 text-slate-500" /> {rec.issuedBase}
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-slate-300 whitespace-nowrap">
+                        {new Date(rec.issuedAt).toLocaleDateString('en-GB', {
+                          day: '2-digit', month: 'short', year: 'numeric'
+                        })}
+                      </td>
+                      <td className="p-3.5">
+                        {rec.letterRef ? (
+                          <div className="flex items-center gap-1 text-amber-300 font-mono text-[11px]">
+                            <FileText className="w-3 h-3 shrink-0" /> {rec.letterRef}
+                          </div>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        {rec.letterAuthority ? (
+                          <div className="flex items-center gap-1 text-purple-300 text-[11px]">
+                            <ShieldCheck className="w-3 h-3 shrink-0" /> {rec.letterAuthority}
+                          </div>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        {rec.isReplacement ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-bold">
+                            <Repeat2 className="w-3 h-3" /> Replacement
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                            <PackageOpen className="w-3 h-3" /> Direct Issue
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        {rec.replacedEquipment ? (
+                          <div>
+                            <div className="font-bold text-rose-400">SN #{rec.replacedEquipment.sn}</div>
+                            <div className="text-[10px] text-slate-400">{rec.replacedEquipment.brandModel || 'N/A'}</div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      {/* Withdrawn From column — shows where old PC was taken from */}
+                      <td className="p-3.5">
+                        {rec.withdrawalRecord ? (
+                          <div className="space-y-1">
+                            <div className="text-[10px] text-slate-300 font-semibold">{rec.withdrawalRecord.withdrawnFrom}</div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <Building className="w-3 h-3" /> {rec.withdrawalRecord.withdrawnBase}
+                            </div>
+                            {rec.withdrawalRecord.upgradation ? (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${
+                                rec.withdrawalRecord.upgradation.isDistributed
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : rec.withdrawalRecord.upgradation.isUpgraded
+                                  ? 'bg-sky-500/20 text-sky-400 border-sky-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                              }`}>
+                                {rec.withdrawalRecord.upgradation.isDistributed
+                                  ? '✓ Distributed'
+                                  : rec.withdrawalRecord.upgradation.isUpgraded
+                                  ? '✓ Upgraded'
+                                  : 'Pending'}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold">
+                                <AlertTriangle className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      {/* Details Button */}
+                      <td className="p-3.5">
+                        <button
+                          onClick={() => setDetailRecord(rec)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 text-[11px] font-bold transition-all whitespace-nowrap"
+                        >
+                          <Info className="w-3 h-3" /> Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(records.length / pageSize) || 1}
+              pageSize={pageSize}
+              totalItems={records.length}
+              onPageChange={(p) => setCurrentPage(p)}
+              onPageSizeChange={(s) => {
+                setPageSize(s);
+                setCurrentPage(1);
+              }}
+            />
+          </>
         )}
       </div>
 

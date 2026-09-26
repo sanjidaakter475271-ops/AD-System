@@ -8,6 +8,8 @@ import {
   Clock, Layers, Info, Users, Plus, Trash2, Copy
 } from 'lucide-react';
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
+import { Pagination } from '@/components/ui/Pagination';
+import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PC = {
@@ -514,6 +516,8 @@ export default function WithdrawIssuePage() {
   // Inventory tab
   const [inventory, setInventory] = useState<PC[]>([]);
   const [invLoading, setInvLoading] = useState(true);
+  const [invPage, setInvPage] = useState(1);
+  const [invPageSize, setInvPageSize] = useState(25);
   const [filterBase, setFilterBase] = useState('');
   const [filterOffice, setFilterOffice] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'not-issued' | 'issued'>('all');
@@ -528,6 +532,8 @@ export default function WithdrawIssuePage() {
   // Withdrawal tab
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [wdLoading, setWdLoading] = useState(true);
+  const [wdPage, setWdPage] = useState(1);
+  const [wdPageSize, setWdPageSize] = useState(25);
   const [wdFilterBase, setWdFilterBase] = useState('');
   const [wdFilterOffice, setWdFilterOffice] = useState('');
   const [selectedWdPcIds, setSelectedWdPcIds] = useState<number[]>([]);
@@ -561,6 +567,7 @@ export default function WithdrawIssuePage() {
   ]);
 
   const [customBaseUnits, setCustomBaseUnits] = useState<any[]>([]);
+  const [sectionHierarchy, setSectionHierarchy] = useState<Record<string, Record<string, Record<string, any>>>>({});
 
   const allBaseUnits = Array.from(new Set([...BASE_UNITS, ...customBaseUnits.map(b => b.name)]));
 
@@ -569,6 +576,18 @@ export default function WithdrawIssuePage() {
     if (bObj?.offices && bObj.offices.length > 0) return bObj.offices.map((o: any) => o.name);
     return baseName === 'Air HQ' || !baseName ? DIRECTORATES : ['General Office', 'Admin Branch', 'Signal Section'];
   };
+
+  const fetchSectionHierarchy = useCallback(async () => {
+    try {
+      const res = await fetch('/api/withdraw-issue/section-count');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object' && !data.error) {
+          setSectionHierarchy(data);
+        }
+      }
+    } catch {}
+  }, []);
 
   const fetchInventory = useCallback(async () => {
     setInvLoading(true);
@@ -603,7 +622,7 @@ export default function WithdrawIssuePage() {
   }, [wdFilterBase, wdFilterOffice]);
 
   useEffect(() => { fetch('/api/base-units').then(r => r.json()).then(setCustomBaseUnits).catch(() => {}); }, []);
-  useEffect(() => { fetchInventory(); fetchNewPcs(); }, [fetchInventory, fetchNewPcs]);
+  useEffect(() => { fetchInventory(); fetchNewPcs(); fetchSectionHierarchy(); }, [fetchInventory, fetchNewPcs, fetchSectionHierarchy]);
   useEffect(() => { fetchWithdrawals(); }, [fetchWithdrawals]);
 
   const filteredInventory = inventory.filter(pc => {
@@ -638,51 +657,89 @@ export default function WithdrawIssuePage() {
   // Bulk Issue Handlers
   // ---------------------------------------------------------------------------
   const updateBulkItem = (id: string, updates: Partial<BulkIssueItem>) => {
-    setBulkItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const updated = { ...item, ...updates };
+    setBulkItems(prev => {
+      // 1. Apply requested field update to the target row
+      const updatedList = prev.map(item => {
+        if (item.id !== id) return item;
+        const updated = { ...item, ...updates };
 
-      // When New PC is selected, auto-fill intendedBase & intendedOffice and match old PC
-      if (updates.newPcId && updates.newPcId !== item.newPcId) {
-        const newPcIdStr = updates.newPcId.toString();
-        const selectedPc = newPcs.find(p => p.id.toString() === newPcIdStr);
-        if (selectedPc) {
-          if (selectedPc.intendedBase) updated.issuedBase = selectedPc.intendedBase;
-          if (selectedPc.intendedOffice) updated.issuedOffice = selectedPc.intendedOffice;
-
-          // Find matching not-eligible old PC in that office/base
-          const matchedOldPc = inventory.find(
-            p => p.baseUnit === (updated.issuedBase) &&
-                 p.directorate === (updated.issuedOffice) &&
-                 (p.issueStatus === 'Not Issued' || !p.issueStatus)
-          ) || inventory.find(
-            p => p.baseUnit === (updated.issuedBase) &&
-                 (p.issueStatus === 'Not Issued' || !p.issueStatus)
-          );
-
-          if (matchedOldPc) {
-            updated.issueMode = 'replace-old';
-            updated.oldPcId = matchedOldPc.id.toString();
-            if (matchedOldPc.location) updated.issuedTo = matchedOldPc.location;
+        // When Target Base changes, reset Target Office if current office isn't available in new base
+        if (updates.issuedBase && updates.issuedBase !== item.issuedBase) {
+          const offices = getOfficesForBase(updates.issuedBase);
+          if (!offices.includes(updated.issuedOffice)) {
+            updated.issuedOffice = offices[0] || '';
           }
         }
-      }
 
-      // Auto-match old PC when office or mode changes
-      if (updated.issueMode === 'replace-old' && !updated.oldPcId) {
-        const matchedOldPc = inventory.find(
-          p => p.baseUnit === updated.issuedBase &&
-               p.directorate === updated.issuedOffice &&
-               (p.issueStatus === 'Not Issued' || !p.issueStatus)
-        );
-        if (matchedOldPc) {
-          updated.oldPcId = matchedOldPc.id.toString();
-          if (matchedOldPc.location && !updated.issuedTo) updated.issuedTo = matchedOldPc.location;
+        // When New PC is selected, auto-fill intendedBase & intendedOffice
+        if (updates.newPcId && updates.newPcId !== item.newPcId) {
+          const newPcIdStr = updates.newPcId.toString();
+          const selectedPc = newPcs.find(p => p.id.toString() === newPcIdStr);
+          if (selectedPc) {
+            if (selectedPc.intendedBase) updated.issuedBase = selectedPc.intendedBase;
+            if (selectedPc.intendedOffice) updated.issuedOffice = selectedPc.intendedOffice;
+          }
         }
-      }
 
-      return updated;
-    }));
+        return updated;
+      });
+
+      // 2. Sequential re-sync pass: ensure section & oldPcId are valid and non-overlapping
+      const usedOldPcIds = new Set<string>();
+
+      return updatedList.map(item => {
+        if (item.issueMode !== 'replace-old') {
+          return { ...item, oldPcId: '' };
+        }
+
+        // Available not-eligible old PCs in this base & office not used by prior rows
+        const availablePcsInOffice = inventory.filter(p =>
+          p.baseUnit === item.issuedBase &&
+          p.directorate === item.issuedOffice &&
+          p.issueStatus !== 'Withdrawn & Issued' &&
+          p.issueStatus !== 'Withdrawn' &&
+          !usedOldPcIds.has(p.id.toString())
+        );
+
+        // Group available PCs by section name
+        const sectionMap = new Map<string, PC[]>();
+        availablePcsInOffice.forEach(p => {
+          const sec = (p.location && p.location.trim()) ? p.location.trim() : 'Unassigned Section';
+          if (!sectionMap.has(sec)) sectionMap.set(sec, []);
+          sectionMap.get(sec)!.push(p);
+        });
+
+        const validSections = Array.from(sectionMap.keys());
+
+        let currentSection = item.issuedTo.trim();
+        let currentOldPcId = item.oldPcId;
+
+        // If current section has no remaining available PCs in this office, pick the first valid section
+        if (!currentSection || !validSections.includes(currentSection)) {
+          currentSection = validSections[0] || '';
+        }
+
+        // Get PCs in the chosen section
+        const pcsInSec = sectionMap.get(currentSection) || availablePcsInOffice;
+
+        // Check if currentOldPcId is still valid in this section & unselected
+        const isOldPcValid = pcsInSec.some(p => p.id.toString() === currentOldPcId);
+        if (!isOldPcValid) {
+          const chosenPc = pcsInSec[0];
+          currentOldPcId = chosenPc ? chosenPc.id.toString() : '';
+        }
+
+        if (currentOldPcId) {
+          usedOldPcIds.add(currentOldPcId);
+        }
+
+        return {
+          ...item,
+          issuedTo: currentSection,
+          oldPcId: currentOldPcId,
+        };
+      });
+    });
   };
 
   const addBulkItem = () => {
@@ -853,70 +910,89 @@ export default function WithdrawIssuePage() {
             </div>
 
             {invLoading ? (
-              <div className="p-10 text-center text-slate-400">Loading...</div>
+              <div className="p-8">
+                <LoadingSpinner label="Loading inventory..." size="lg" />
+                <TableSkeleton rows={5} cols={9} />
+              </div>
             ) : filteredInventory.length === 0 ? (
               <div className="p-10 text-center text-slate-400 space-y-2">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
                 <p className="text-sm font-semibold text-slate-300">No PCs found</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-200">
-                  <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                    <tr>
-                      <th className="p-3.5">SN</th>
-                      <th className="p-3.5">Office / Base</th>
-                      <th className="p-3.5">Section</th>
-                      <th className="p-3.5">Type</th>
-                      <th className="p-3.5">Brand / Serial</th>
-                      <th className="p-3.5">Specs</th>
-                      <th className="p-3.5">Win10</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/80">
-                    {filteredInventory.map(item => (
-                      <tr key={item.id} className="hover:bg-slate-800/40">
-                        <td className="p-3.5 font-bold text-rose-400">#{item.sn}</td>
-                        <td className="p-3.5">
-                          <div className="font-semibold text-white">{item.directorate}</div>
-                          <div className="text-[10px] text-slate-400">{item.baseUnit}</div>
-                        </td>
-                        <td className="p-3.5">
-                          <div className="text-slate-200">{item.location || '—'}</div>
-                          {item.issueRecords?.[0]?.sectionLabel && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">
-                              {item.issueRecords[0].sectionLabel}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3.5 text-indigo-300 font-semibold">{item.equipmentType}</td>
-                        <td className="p-3.5">
-                          <div>{item.brandModel || '—'}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
-                        </td>
-                        <td className="p-3.5 text-slate-300">
-                          <div>{item.processor ? `${item.processor} (${item.generation}th)` : '—'}</div>
-                          <div className="text-[10px] text-slate-400">{item.ramGb ? `${item.ramGb}GB` : ''} {item.storageType ? `| ${item.storageType}` : ''}</div>
-                        </td>
-                        <td className="p-3.5"><span className="text-rose-400 font-bold text-[10px]">{item.win10Eligible || 'N/A'}</span></td>
-                        <td className="p-3.5">{statusBadge(item.issueStatus)}</td>
-                        <td className="p-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {item.issueStatus === 'Issued' && (
-                              <button onClick={() => setDetailPanel(item)} className="px-2.5 py-1.5 rounded-xl bg-purple-600/20 text-purple-300 text-[11px] font-bold">Details</button>
-                            )}
-                            {(!item.issueStatus || item.issueStatus === 'Not Issued') && (
-                              <button onClick={() => setIssuePanel(item)} className="px-2.5 py-1.5 rounded-xl bg-sky-600/20 text-sky-300 text-[11px] font-bold">Issue</button>
-                            )}
-                          </div>
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-200">
+                    <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                      <tr>
+                        <th className="p-3.5">SN</th>
+                        <th className="p-3.5">Office / Base</th>
+                        <th className="p-3.5">Section</th>
+                        <th className="p-3.5">Type</th>
+                        <th className="p-3.5">Brand / Serial</th>
+                        <th className="p-3.5">Specs</th>
+                        <th className="p-3.5">Win10</th>
+                        <th className="p-3.5">Status</th>
+                        <th className="p-3.5 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80">
+                      {filteredInventory
+                        .slice((invPage - 1) * invPageSize, invPage * invPageSize)
+                        .map(item => (
+                        <tr key={item.id} className="hover:bg-slate-800/40">
+                          <td className="p-3.5 font-bold text-rose-400">#{item.sn}</td>
+                          <td className="p-3.5">
+                            <div className="font-semibold text-white">{item.directorate}</div>
+                            <div className="text-[10px] text-slate-400">{item.baseUnit}</div>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="text-slate-200">{item.location || '—'}</div>
+                            {item.issueRecords?.[0]?.sectionLabel && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">
+                                {item.issueRecords[0].sectionLabel}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-indigo-300 font-semibold">{item.equipmentType}</td>
+                          <td className="p-3.5">
+                            <div>{item.brandModel || '—'}</div>
+                            <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
+                          </td>
+                          <td className="p-3.5 text-slate-300">
+                            <div>{item.processor ? `${item.processor} (${item.generation}th)` : '—'}</div>
+                            <div className="text-[10px] text-slate-400">{item.ramGb ? `${item.ramGb}GB` : ''} {item.storageType ? `| ${item.storageType}` : ''}</div>
+                          </td>
+                          <td className="p-3.5"><span className="text-rose-400 font-bold text-[10px]">{item.win10Eligible || 'N/A'}</span></td>
+                          <td className="p-3.5">{statusBadge(item.issueStatus)}</td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {item.issueStatus === 'Issued' && (
+                                <button onClick={() => setDetailPanel(item)} className="px-2.5 py-1.5 rounded-xl bg-purple-600/20 text-purple-300 text-[11px] font-bold">Details</button>
+                              )}
+                              {(!item.issueStatus || item.issueStatus === 'Not Issued') && (
+                                <button onClick={() => setIssuePanel(item)} className="px-2.5 py-1.5 rounded-xl bg-sky-600/20 text-sky-300 text-[11px] font-bold">Issue</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <Pagination
+                  currentPage={invPage}
+                  totalPages={Math.ceil(filteredInventory.length / invPageSize) || 1}
+                  pageSize={invPageSize}
+                  totalItems={filteredInventory.length}
+                  onPageChange={(p) => setInvPage(p)}
+                  onPageSizeChange={(s) => {
+                    setInvPageSize(s);
+                    setInvPage(1);
+                  }}
+                />
+              </>
             )}
           </div>
         </div>
@@ -1204,14 +1280,60 @@ export default function WithdrawIssuePage() {
 
             {bulkItems.map((item, idx) => {
               const currentOffices = getOfficesForBase(item.issuedBase);
-              const notEligibleFiltered = inventory.filter(
-                p => p.baseUnit === item.issuedBase && (p.issueStatus === 'Not Issued' || !p.issueStatus)
+
+              // 1. Available New PCs for this row (excluding New PCs selected in OTHER rows)
+              const selectedNewPcIdsInOtherRows = new Set(
+                bulkItems
+                  .filter(b => b.id !== item.id && b.newPcId)
+                  .map(b => b.newPcId.toString())
+              );
+              const availableNewPcs = newPcs.filter(
+                p => !selectedNewPcIdsInOtherRows.has(p.id.toString())
               );
 
-              // Suggested sections in this office/base
-              const suggestedSections = Array.from(new Set(
-                notEligibleFiltered.map(p => p.location).filter(Boolean)
+              // 2. Exclude Old PCs selected in OTHER rows
+              const selectedOldPcIdsInOtherRows = new Set(
+                bulkItems
+                  .filter(b => b.id !== item.id && b.issueMode === 'replace-old' && b.oldPcId)
+                  .map(b => b.oldPcId.toString())
+              );
+
+              // Available not-eligible PCs in this base & office, not yet replaced & not selected in other rows
+              const availableOldPcsInOffice = inventory.filter(p =>
+                p.baseUnit === item.issuedBase &&
+                p.directorate === item.issuedOffice &&
+                p.issueStatus !== 'Withdrawn & Issued' &&
+                p.issueStatus !== 'Withdrawn' &&
+                !selectedOldPcIdsInOtherRows.has(p.id.toString())
+              );
+
+              // 3. Suggested sections for THIS specific office & base
+              // In replace-old mode, suggest ONLY sections that still have remaining unselected PCs to replace
+              const sectionsWithAvailablePcs = Array.from(new Set(
+                availableOldPcsInOffice
+                  .map(p => p.location)
+                  .filter((loc): loc is string => Boolean(loc && loc.trim()))
               ));
+
+              const baseSecs = sectionHierarchy[item.issuedBase]?.[item.issuedOffice];
+              const hierarchySecs = baseSecs ? Object.keys(baseSecs) : [];
+              const inventorySecs = inventory
+                .filter(p => p.baseUnit === item.issuedBase && p.directorate === item.issuedOffice)
+                .map(p => p.location)
+                .filter((loc): loc is string => Boolean(loc && loc.trim()));
+              const allOfficeSections = Array.from(new Set([...hierarchySecs, ...inventorySecs]));
+
+              const suggestedSections = item.issueMode === 'replace-old' && sectionsWithAvailablePcs.length > 0
+                ? sectionsWithAvailablePcs
+                : allOfficeSections;
+
+              // Filter available old PCs by section if user typed/selected section
+              const sectionTrimmed = (item.issuedTo || '').trim().toLowerCase();
+              const oldPcsInSection = sectionTrimmed
+                ? availableOldPcsInOffice.filter(p => (p.location || '').trim().toLowerCase() === sectionTrimmed)
+                : [];
+
+              const displayOldPcs = sectionTrimmed ? oldPcsInSection : availableOldPcsInOffice;
 
               const selectedNewPcObj = newPcs.find(p => p.id.toString() === item.newPcId.toString());
 
@@ -1258,7 +1380,7 @@ export default function WithdrawIssuePage() {
                         required
                       >
                         <option value="">-- Choose New PC --</option>
-                        {newPcs.map(p => (
+                        {availableNewPcs.map(p => (
                           <option key={p.id} value={p.id}>
                             SN #{p.sn} | {p.brandModel || p.equipmentType} | Intended: {p.intendedOffice || 'Any'} ({p.intendedBase || 'Air HQ'})
                           </option>
@@ -1326,7 +1448,7 @@ export default function WithdrawIssuePage() {
                     {item.issueMode === 'replace-old' && (
                       <div className="col-span-3 bg-amber-950/30 border border-amber-800/40 p-2.5 rounded-xl space-y-1">
                         <label className="block text-[11px] font-bold uppercase text-amber-400">
-                          Auto-Suggested Old PC to Replace ({item.issuedOffice}) *
+                          Auto-Suggested Old PC to Replace ({item.issuedOffice}{item.issuedTo ? ` - ${item.issuedTo}` : ''}) *
                         </label>
                         <select
                           value={item.oldPcId}
@@ -1335,12 +1457,17 @@ export default function WithdrawIssuePage() {
                           required={item.issueMode === 'replace-old'}
                         >
                           <option value="">-- Choose Not-Eligible Old PC --</option>
-                          {notEligibleFiltered.map(p => (
+                          {displayOldPcs.map(p => (
                             <option key={p.id} value={p.id}>
-                              SN #{p.sn} | {p.directorate} ({p.location || 'No Sec'}) | {p.brandModel || p.equipmentType} | {p.processor ? `${p.processor} (${p.generation}th)` : 'N/A'}
+                              SN #{p.sn} | Sec: {p.location || 'Unassigned'} | {p.brandModel || p.equipmentType} | {p.processor ? `${p.processor} (${p.generation}th Gen)` : 'Specs N/A'}
                             </option>
                           ))}
                         </select>
+                        {displayOldPcs.length === 0 && (
+                          <p className="text-[10px] text-amber-400/80 italic mt-0.5">
+                            No available not-eligible old PCs found for replacement in {item.issuedOffice} {item.issuedTo ? `(${item.issuedTo})` : ''}.
+                          </p>
+                        )}
                       </div>
                     )}
 

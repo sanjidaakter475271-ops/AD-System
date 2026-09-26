@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { invalidateEquipmentCache } from '@/lib/cache';
 
 // CockroachDB `sequence()` IDs are 64-bit values that exceed both
 // Number.MAX_SAFE_INTEGER and Prisma's `Int` (32-bit) field type.
@@ -155,6 +156,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       safeId
     );
     const equipment = rows[0];
+    invalidateEquipmentCache();
     return NextResponse.json(mapRow(equipment));
   } catch (error) {
     console.error('API Error:', error);
@@ -190,6 +192,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await prisma.$executeRawUnsafe(
       `DELETE FROM "public"."equipment" WHERE "id" = ${safeId}`
     );
+    invalidateEquipmentCache();
     return NextResponse.json({ message: 'Deleted successfully' });
   } catch (error) {
     console.error('API Error:', error);

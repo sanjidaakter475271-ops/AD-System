@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { Search, Monitor, Filter, Edit, Trash2, Building, CheckCircle2, XCircle, AlertCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { BASE_UNITS, DIRECTORATES, EQUIPMENT_TYPES, AD_STATUS_OPTIONS, STATUS_OPTIONS } from '@/lib/constants';
+import { Pagination } from '@/components/ui/Pagination';
+import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -21,6 +23,8 @@ function SearchContent() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const performSearch = async () => {
     setLoading(true);
@@ -179,9 +183,9 @@ function SearchContent() {
       {/* Search Results Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-400">
-            <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-            Searching active directory & inventory database...
+          <div className="p-8">
+            <LoadingSpinner label="Searching active directory & inventory..." size="lg" />
+            <TableSkeleton rows={5} cols={8} />
           </div>
         ) : searched && results.length === 0 ? (
           <div className="p-12 text-center text-slate-400 space-y-2">
@@ -190,87 +194,103 @@ function SearchContent() {
             <p className="text-xs text-slate-500">Try broadening your filters or searching by serial number.</p>
           </div>
         ) : results.length > 0 ? (
-          <div className="overflow-x-auto">
-            <div className="p-4 bg-slate-800/60 border-b border-slate-800 text-xs font-semibold text-amber-400 flex items-center justify-between">
-              <span>Found {results.length} matching equipment records:</span>
-            </div>
-            <table className="w-full text-left text-xs text-slate-200">
-              <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px]">
-                <tr>
-                  <th className="p-3.5">SN</th>
-                  <th className="p-3.5">Base Unit & Directorate</th>
-                  <th className="p-3.5">Type & PC Status</th>
-                  <th className="p-3.5">Brand / Serial</th>
-                  <th className="p-3.5">Processor / Storage</th>
-                  <th className="p-3.5">AD Status & Remarks</th>
-                  <th className="p-3.5">Win 11 Recommendation</th>
-                  <th className="p-3.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {results.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3.5 font-bold text-amber-400">#{item.sn}</td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-white">{item.directorate}</div>
-                      <div className="text-[10px] text-slate-400">{item.baseUnit || 'Air HQ'}</div>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="text-indigo-300 font-medium">{item.equipmentType}</div>
-                      {item.isNewPc && (
-                        <span className="inline-block mt-0.5 px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
-                          NEW PC
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <div>{item.brandModel || '—'}</div>
-                      <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
-                    </td>
-                    <td className="p-3.5 text-slate-300">
-                      <div>{item.processor ? `${item.processor} (${item.generation || '?'}th Gen)` : '—'}</div>
-                      <div className="text-[10px] text-slate-400">{item.storageType || 'N/A'}</div>
-                    </td>
-                    <td className="p-3.5 space-y-1">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                        item.adStatus === 'Joined'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : item.adStatus === 'Not Joined'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      }`}>
-                        AD: {item.adStatus || 'Pending'}
-                      </span>
-                      {item.adRemark && (
-                        <div className="text-[10px] text-rose-300 italic max-w-xs truncate" title={item.adRemark}>
-                          Reason: {item.adRemark}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <span className={
-                        item.win11Eligible?.includes('Recommended')
-                          ? 'text-emerald-300 font-extrabold px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 inline-block text-[10px]'
-                          : item.win11Eligible?.includes('Eligible')
-                            ? 'text-blue-400 font-semibold text-[10px]'
-                            : 'text-rose-400 text-[10px]'
-                      }>
-                        {item.win11Eligible || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <Link
-                        href={`/equipment/${item.id}/edit`}
-                        className="text-xs text-sky-400 hover:text-sky-300 font-semibold"
-                      >
-                        Edit
-                      </Link>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <div className="p-4 bg-slate-800/60 border-b border-slate-800 text-xs font-semibold text-amber-400 flex items-center justify-between">
+                <span>Found {results.length} matching equipment records:</span>
+              </div>
+              <table className="w-full text-left text-xs text-slate-200">
+                <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px]">
+                  <tr>
+                    <th className="p-3.5">SN</th>
+                    <th className="p-3.5">Base Unit & Directorate</th>
+                    <th className="p-3.5">Type & PC Status</th>
+                    <th className="p-3.5">Brand / Serial</th>
+                    <th className="p-3.5">Processor / Storage</th>
+                    <th className="p-3.5">AD Status & Remarks</th>
+                    <th className="p-3.5">Win 11 Recommendation</th>
+                    <th className="p-3.5 text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {results
+                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                    .map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3.5 font-bold text-amber-400">#{item.sn}</td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-white">{item.directorate}</div>
+                        <div className="text-[10px] text-slate-400">{item.baseUnit || 'Air HQ'}</div>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="text-indigo-300 font-medium">{item.equipmentType}</div>
+                        {item.isNewPc && (
+                          <span className="inline-block mt-0.5 px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                            NEW PC
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <div>{item.brandModel || '—'}</div>
+                        <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
+                      </td>
+                      <td className="p-3.5 text-slate-300">
+                        <div>{item.processor ? `${item.processor} (${item.generation || '?'}th Gen)` : '—'}</div>
+                        <div className="text-[10px] text-slate-400">{item.storageType || 'N/A'}</div>
+                      </td>
+                      <td className="p-3.5 space-y-1">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                          item.adStatus === 'Joined'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : item.adStatus === 'Not Joined'
+                              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          AD: {item.adStatus || 'Pending'}
+                        </span>
+                        {item.adRemark && (
+                          <div className="text-[10px] text-rose-300 italic max-w-xs truncate" title={item.adRemark}>
+                            Reason: {item.adRemark}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <span className={
+                          item.win11Eligible?.includes('Recommended')
+                            ? 'text-emerald-300 font-extrabold px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 inline-block text-[10px]'
+                            : item.win11Eligible?.includes('Eligible')
+                              ? 'text-blue-400 font-semibold text-[10px]'
+                              : 'text-rose-400 text-[10px]'
+                        }>
+                          {item.win11Eligible || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <Link
+                          href={`/equipment/${item.id}/edit`}
+                          className="text-xs text-sky-400 hover:text-sky-300 font-semibold"
+                        >
+                          Edit
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(results.length / pageSize) || 1}
+              pageSize={pageSize}
+              totalItems={results.length}
+              onPageChange={(p) => setCurrentPage(p)}
+              onPageSizeChange={(s) => {
+                setPageSize(s);
+                setCurrentPage(1);
+              }}
+            />
+          </>
         ) : null}
       </div>
 

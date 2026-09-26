@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { serverCache } from '@/lib/cache';
 
 function mapEquipmentRow(r: any) {
   return {
@@ -46,6 +47,27 @@ export async function GET(request: Request) {
     const baseUnit = searchParams.get('baseUnit') || '';
     const directorate = searchParams.get('directorate') || '';
     const mode = searchParams.get('mode') || 'inventory'; // 'inventory' | 'new-pcs'
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null;
+    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0;
+
+    const userId = user?.id || user?.username || 'anon';
+    const userBase = user?.baseUnit || 'all';
+    const cacheKey = `not-eligible:${userId}:${userBase}:${baseUnit}:${directorate}:${mode}:${limit}:${offset}`;
+
+    const cached = serverCache.get<{ data: any[]; totalCount: number }>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          'X-Cache': 'HIT',
+          'X-Total-Count': cached.totalCount.toString(),
+        },
+      });
+    }
+
+    let paginationClause = Prisma.empty;
+    if (limit && limit > 0) {
+      paginationClause = Prisma.sql`LIMIT ${limit} OFFSET ${offset}`;
+    }
 
     if (mode === 'new-pcs') {
       const conditions: Prisma.Sql[] = [
@@ -59,13 +81,28 @@ export async function GET(request: Request) {
         conditions.push(Prisma.sql`("intended_base" = ${baseUnit} OR "base_unit" = ${baseUnit})`);
       }
 
+      const countRows: any[] = await prisma.$queryRaw`
+        SELECT COUNT(*)::int as count FROM "public"."equipment"
+        WHERE ${Prisma.join(conditions, ' AND ')}
+      `;
+      const totalCount = countRows[0]?.count || 0;
+
       const rows: any[] = await prisma.$queryRaw`
         SELECT * FROM "public"."equipment"
         WHERE ${Prisma.join(conditions, ' AND ')}
         ORDER BY "sn" ASC
+        ${paginationClause}
       `;
 
-      return NextResponse.json(rows.map(mapEquipmentRow));
+      const result = rows.map(mapEquipmentRow);
+      serverCache.set(cacheKey, { data: result, totalCount }, 60000);
+
+      return NextResponse.json(result, {
+        headers: {
+          'X-Cache': 'MISS',
+          'X-Total-Count': totalCount.toString(),
+        },
+      });
     }
 
     // Default: inventory mode — not-eligible old PCs
@@ -84,19 +121,27 @@ export async function GET(request: Request) {
       conditions.push(Prisma.sql`"directorate" = ${directorate}`);
     }
 
+    const countRows: any[] = await prisma.$queryRaw`
+      SELECT COUNT(*)::int as count FROM "public"."equipment"
+      WHERE ${Prisma.join(conditions, ' AND ')}
+    `;
+    const totalCount = countRows[0]?.count || 0;
+
     const rows: any[] = await prisma.$queryRaw`
       SELECT * FROM "public"."equipment"
       WHERE ${Prisma.join(conditions, ' AND ')}
       ORDER BY "sn" ASC
+      ${paginationClause}
     `;
 
-    // Map equipment rows and attach latest issueRecords if any
-    const equipmentList = await Promise.all(rows.map(async (row) => {
-      const mapped = mapEquipmentRow(row);
-      const safeId = row.id.toString();
-      const issueRecords: any[] = await prisma.$queryRaw`
-        SELECT
-          i."id", i."issued_to" as "issuedTo", i."issued_office" as "issuedOffice",
+    // Fast Single-Query Issue Record Resolution (Eliminates N+1 DB Queries)
+    const eqIds = rows.map(r => BigInt(r.id));
+    const issueRecordMap = new Map<string, any>();
+
+    if (eqIds.length > 0) {
+      const allIssueRecords: any[] = await prisma.$queryRaw`
+        SELECT DISTINCT ON (i."equipment_id")
+          i."id", i."equipment_id", i."issued_to" as "issuedTo", i."issued_office" as "issuedOffice",
           i."issued_base" as "issuedBase", i."issued_at" as "issuedAt",
           i."section_label" as "sectionLabel", i."pc_number" as "pcNumber",
           i."letter_ref" as "letterRef", i."letter_authority" as "letterAuthority",
@@ -104,15 +149,21 @@ export async function GET(request: Request) {
           e."processor", e."generation", e."ram_gb" as "ramGb", e."storage_type" as "storageType"
         FROM "public"."issue_records" i
         LEFT JOIN "public"."equipment" e ON e."id" = i."equipment_id"
-        WHERE i."equipment_id" = ${safeId}::int8
-        ORDER BY i."issued_at" DESC
-        LIMIT 1
+        WHERE i."equipment_id" IN (${Prisma.join(eqIds)})
+        ORDER BY i."equipment_id", i."issued_at" DESC
       `;
-      return {
-        ...mapped,
-        issueRecords: issueRecords.map(r => ({
-          ...r,
+
+      allIssueRecords.forEach(r => {
+        issueRecordMap.set(r.equipment_id.toString(), {
           id: r.id?.toString(),
+          issuedTo: r.issuedTo,
+          issuedOffice: r.issuedOffice,
+          issuedBase: r.issuedBase,
+          issuedAt: r.issuedAt,
+          sectionLabel: r.sectionLabel,
+          pcNumber: r.pcNumber,
+          letterRef: r.letterRef,
+          letterAuthority: r.letterAuthority,
           equipment: r.sn ? {
             sn: Number(r.sn),
             equipmentType: r.equipmentType,
@@ -122,12 +173,29 @@ export async function GET(request: Request) {
             ramGb: r.ramGb ? Number(r.ramGb) : null,
             storageType: r.storageType,
           } : null
-        })),
+        });
+      });
+    }
+
+    const equipmentList = rows.map((row) => {
+      const mapped = mapEquipmentRow(row);
+      const safeId = row.id.toString();
+      const latestIssue = issueRecordMap.get(safeId);
+      return {
+        ...mapped,
+        issueRecords: latestIssue ? [latestIssue] : [],
         withdrawalRecords: [],
       };
-    }));
+    });
 
-    return NextResponse.json(equipmentList);
+    serverCache.set(cacheKey, { data: equipmentList, totalCount }, 60000);
+
+    return NextResponse.json(equipmentList, {
+      headers: {
+        'X-Cache': 'MISS',
+        'X-Total-Count': totalCount.toString(),
+      },
+    });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Failed to fetch not-eligible equipment' }, { status: 500 });

@@ -13,6 +13,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { BASE_UNITS, DIRECTORATES } from '@/lib/constants';
+import { Pagination } from '@/components/ui/Pagination';
+import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
 
 type UpgradationRecord = {
   id: number;
@@ -264,6 +266,8 @@ function UpgradeModal({
 export default function UpgradationPage() {
   const [records, setRecords] = useState<UpgradationRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [filterBase, setFilterBase] = useState('');
   const [filterUpgraded, setFilterUpgraded] = useState('');
   const [filterDistributed, setFilterDistributed] = useState('');
@@ -370,9 +374,9 @@ export default function UpgradationPage() {
       {/* Records Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="p-10 text-center text-slate-400">
-            <div className="animate-spin w-7 h-7 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-2" />
-            Loading upgradation records...
+          <div className="p-8">
+            <LoadingSpinner label="Loading upgradation records..." size="lg" />
+            <TableSkeleton rows={5} cols={7} />
           </div>
         ) : records.length === 0 ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -381,86 +385,102 @@ export default function UpgradationPage() {
             <p className="text-xs text-slate-500">Withdrawn PCs from replacement issues appear here automatically.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-200">
-              <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                <tr>
-                  <th className="p-3.5">SN (Old PC)</th>
-                  <th className="p-3.5">Withdrawn From</th>
-                  <th className="p-3.5">Specs</th>
-                  <th className="p-3.5">Upgrade</th>
-                  <th className="p-3.5">Distribution</th>
-                  <th className="p-3.5">Remarks</th>
-                  <th className="p-3.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {records.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3.5">
-                      <div className="font-bold text-amber-400">#{rec.equipment.sn}</div>
-                      <div className="text-[10px] text-slate-400">{rec.equipment.equipmentType}</div>
-                      <div className="text-[10px] text-slate-500">{rec.equipment.brandModel || 'N/A'}</div>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-white">{rec.withdrawal.withdrawnFrom}</div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Building className="w-3 h-3 text-slate-500" /> {rec.withdrawal.withdrawnBase}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {new Date(rec.withdrawal.withdrawnAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-slate-300">
-                      <div>{rec.equipment.processor ? `${rec.equipment.processor} (${rec.equipment.generation}th)` : '—'}</div>
-                      <div className="text-[10px] text-slate-400">{rec.equipment.ramGb ? `${rec.equipment.ramGb}GB RAM` : ''} {rec.equipment.storageType ? `| ${rec.equipment.storageType}` : ''}</div>
-                    </td>
-                    <td className="p-3.5">
-                      {rec.isUpgraded ? (
-                        <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                            <CheckCircle2 className="w-3 h-3" /> Upgraded
-                          </span>
-                          {rec.upgradedBy && <div className="text-[10px] text-slate-400">By: {rec.upgradedBy}</div>}
-                          {rec.upgradedAt && <div className="text-[10px] text-slate-500">{new Date(rec.upgradedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
-                          <Clock className="w-3 h-3" /> Pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      {rec.isDistributed ? (
-                        <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] font-bold">
-                            <ArrowRightCircle className="w-3 h-3" /> Distributed
-                          </span>
-                          <div className="text-[10px] text-white font-semibold">{rec.distributedTo}</div>
-                          {rec.distributedBase && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Building className="w-3 h-3 text-slate-500" /> {rec.distributedBase}</div>}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500 text-[10px]">Not Distributed</span>
-                      )}
-                    </td>
-                    <td className="p-3.5 max-w-[200px]">
-                      <div className="text-[10px] text-slate-400 break-words">{rec.remarks || '—'}</div>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      {!rec.isDistributed && (
-                        <button
-                          onClick={() => setSelectedRecord(rec)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold transition-all ml-auto"
-                        >
-                          <Wrench className="w-3 h-3" /> Process / Distribute
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-200">
+                <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                  <tr>
+                    <th className="p-3.5">SN (Old PC)</th>
+                    <th className="p-3.5">Withdrawn From</th>
+                    <th className="p-3.5">Specs</th>
+                    <th className="p-3.5">Upgrade</th>
+                    <th className="p-3.5">Distribution</th>
+                    <th className="p-3.5">Remarks</th>
+                    <th className="p-3.5 text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {records
+                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                    .map((rec) => (
+                    <tr key={rec.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3.5">
+                        <div className="font-bold text-amber-400">#{rec.equipment.sn}</div>
+                        <div className="text-[10px] text-slate-400">{rec.equipment.equipmentType}</div>
+                        <div className="text-[10px] text-slate-500">{rec.equipment.brandModel || 'N/A'}</div>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-white">{rec.withdrawal.withdrawnFrom}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Building className="w-3 h-3 text-slate-500" /> {rec.withdrawal.withdrawnBase}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {new Date(rec.withdrawal.withdrawnAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-slate-300">
+                        <div>{rec.equipment.processor ? `${rec.equipment.processor} (${rec.equipment.generation}th)` : '—'}</div>
+                        <div className="text-[10px] text-slate-400">{rec.equipment.ramGb ? `${rec.equipment.ramGb}GB RAM` : ''} {rec.equipment.storageType ? `| ${rec.equipment.storageType}` : ''}</div>
+                      </td>
+                      <td className="p-3.5">
+                        {rec.isUpgraded ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                              <CheckCircle2 className="w-3 h-3" /> Upgraded
+                            </span>
+                            {rec.upgradedBy && <div className="text-[10px] text-slate-400">By: {rec.upgradedBy}</div>}
+                            {rec.upgradedAt && <div className="text-[10px] text-slate-500">{new Date(rec.upgradedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
+                            <Clock className="w-3 h-3" /> Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        {rec.isDistributed ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] font-bold">
+                              <ArrowRightCircle className="w-3 h-3" /> Distributed
+                            </span>
+                            <div className="text-[10px] text-white font-semibold">{rec.distributedTo}</div>
+                            {rec.distributedBase && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Building className="w-3 h-3 text-slate-500" /> {rec.distributedBase}</div>}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 text-[10px]">Not Distributed</span>
+                        )}
+                      </td>
+                      <td className="p-3.5 max-w-[200px]">
+                        <div className="text-[10px] text-slate-400 break-words">{rec.remarks || '—'}</div>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        {!rec.isDistributed && (
+                          <button
+                            onClick={() => setSelectedRecord(rec)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold transition-all ml-auto"
+                          >
+                            <Wrench className="w-3 h-3" /> Process / Distribute
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(records.length / pageSize) || 1}
+              pageSize={pageSize}
+              totalItems={records.length}
+              onPageChange={(p) => setCurrentPage(p)}
+              onPageSizeChange={(s) => {
+                setPageSize(s);
+                setCurrentPage(1);
+              }}
+            />
+          </>
         )}
       </div>
 

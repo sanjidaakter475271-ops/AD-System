@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calcWin10, calcWin11, calcStorageType } from '@/lib/eligibility';
+import { invalidateEquipmentCache } from '@/lib/cache';
 
 function parseId(id: any): string | null {
   if (!id) return null;
@@ -162,6 +163,8 @@ export async function POST(request: Request) {
 
       created.push({ equipment: { ...equipment, id: eqIdStr }, issueRecord, withdrawalRecord });
     }
+
+    invalidateEquipmentCache();
 
     return NextResponse.json({
       message: `${created.length} equipment record(s) created successfully`,

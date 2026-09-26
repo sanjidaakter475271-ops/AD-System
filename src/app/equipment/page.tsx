@@ -18,12 +18,19 @@ import {
   Save
 } from 'lucide-react';
 import { BASE_UNITS, DIRECTORATES, EQUIPMENT_TYPES, STATUS_OPTIONS, AD_STATUS_OPTIONS } from '@/lib/constants';
+import { Pagination } from '@/components/ui/Pagination';
+import { LoadingSpinner, TableSkeleton } from '@/components/ui/LoadingSpinner';
 
 export default function EquipmentPage() {
   const [equipment, setEquipment] = useState<any[]>([]);
   const [customBaseUnits, setCustomBaseUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(30);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -55,7 +62,7 @@ export default function EquipmentPage() {
     }
   };
 
-  const fetchEquipment = async () => {
+  const fetchEquipment = async (page = currentPage, size = pageSize) => {
     setLoading(true);
     setError('');
     setSelectedIds([]);
@@ -69,10 +76,18 @@ export default function EquipmentPage() {
       if (selectedAdStatus) query.append('adStatus', selectedAdStatus);
       if (selectedNewPcFilter) query.append('isNewPc', selectedNewPcFilter);
 
+      const offset = (page - 1) * size;
+      query.append('limit', size.toString());
+      query.append('offset', offset.toString());
+
       const res = await fetch(`/api/equipment?${query.toString()}`);
       if (!res.ok) throw new Error('Failed to load equipment list');
+      
+      const totalHeader = res.headers.get('X-Total-Count');
       const data = await res.json();
+      
       setEquipment(data);
+      setTotalCount(totalHeader ? parseInt(totalHeader) : data.length);
     } catch (err: any) {
       setError(err.message || 'Error fetching equipment');
     } finally {
@@ -82,8 +97,17 @@ export default function EquipmentPage() {
 
   useEffect(() => {
     loadBaseUnits();
-    fetchEquipment();
-  }, [selectedBaseUnit, selectedDirectorate, selectedStatus, selectedType, selectedAdStatus, selectedNewPcFilter]);
+  }, []);
+
+  useEffect(() => {
+    fetchEquipment(currentPage, pageSize);
+  }, [currentPage, pageSize, selectedBaseUnit, selectedDirectorate, selectedStatus, selectedType, selectedAdStatus, selectedNewPcFilter]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    fetchEquipment(1, pageSize);
+  };
 
   // Combine static and DB base units
   const allBaseUnits = Array.from(new Set([
@@ -96,11 +120,6 @@ export default function EquipmentPage() {
   const availableOffices = (activeBaseObject?.offices && activeBaseObject.offices.length > 0)
     ? activeBaseObject.offices.map((o: any) => o.name)
     : (selectedBaseUnit === 'Air HQ' || !selectedBaseUnit ? DIRECTORATES : []);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchEquipment();
-  };
 
   const handleQuickSaveAd = async (id: number) => {
     try {
@@ -179,7 +198,9 @@ export default function EquipmentPage() {
             <Monitor className="w-6 h-6 text-indigo-400" />
             Equipment & Active Directory Inventory
           </h1>
-          <p className="text-sm text-slate-400">Total {equipment.length} items registered across all Base/Units & Directorates</p>
+          <p className="text-sm text-slate-400">
+            Total {totalCount > 0 ? totalCount : equipment.length} items registered across all Base/Units &amp; Directorates
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -315,7 +336,7 @@ export default function EquipmentPage() {
 
             <button
               type="button"
-              onClick={fetchEquipment}
+              onClick={() => fetchEquipment(currentPage, pageSize)}
               className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
               title="Refresh List"
             >
@@ -329,9 +350,9 @@ export default function EquipmentPage() {
       {/* Equipment Table */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-400">
-            <div className="animate-spin w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-            Loading equipment inventory...
+          <div className="p-8">
+            <LoadingSpinner label="Loading equipment inventory..." size="lg" />
+            <TableSkeleton rows={6} cols={9} />
           </div>
         ) : error ? (
           <div className="p-8 text-center text-rose-400 font-semibold">{error}</div>
@@ -342,195 +363,210 @@ export default function EquipmentPage() {
             <p className="text-xs text-slate-500">Try clearing filters or add a new record.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-200">
-              <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                <tr>
-                  <th className="p-3.5 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={equipment.length > 0 && selectedIds.length === equipment.length}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
-                      title="Select all equipment"
-                    />
-                  </th>
-                  <th className="p-3.5">SN</th>
-                  <th className="p-3.5">Base & Directorate</th>
-                  <th className="p-3.5">Type & PC Status</th>
-                  <th className="p-3.5">Brand / Serial</th>
-                  <th className="p-3.5">Specs / Storage</th>
-                  <th className="p-3.5">AD Status & Remarks</th>
-                  <th className="p-3.5">Status</th>
-                  <th className="p-3.5">Win10 / Win11 Recommendation</th>
-                  <th className="p-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {equipment.map((item) => (
-                  <tr key={item.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(String(item.id)) ? 'bg-sky-950/20' : ''}`}>
-                    <td className="p-3.5 text-center">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-200">
+                <thead className="bg-slate-800/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
+                  <tr>
+                    <th className="p-3.5 w-10 text-center">
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(String(item.id))}
-                        onChange={() => handleSelectRow(String(item.id))}
+                        checked={equipment.length > 0 && selectedIds.length === equipment.length}
+                        onChange={handleSelectAll}
                         className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+                        title="Select all equipment"
                       />
-                    </td>
-                    <td className="p-3.5 font-bold text-sky-400">#{item.sn}</td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-white">{item.directorate}</div>
-                      <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-                        <Building className="w-3 h-3 text-slate-500" />
-                        {item.baseUnit || 'Air HQ'}
-                      </div>
-                      {item.location && (
-                        <div className="text-[10px] text-sky-400/90 font-medium mt-0.5">
-                          Loc: {item.location}
+                    </th>
+                    <th className="p-3.5">SN</th>
+                    <th className="p-3.5">Base & Directorate</th>
+                    <th className="p-3.5">Type & PC Status</th>
+                    <th className="p-3.5">Brand / Serial</th>
+                    <th className="p-3.5">Specs / Storage</th>
+                    <th className="p-3.5">AD Status & Remarks</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Win10 / Win11 Recommendation</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {equipment.map((item) => (
+                    <tr key={item.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(String(item.id)) ? 'bg-sky-950/20' : ''}`}>
+                      <td className="p-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(String(item.id))}
+                          onChange={() => handleSelectRow(String(item.id))}
+                          className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3.5 font-bold text-sky-400">#{item.sn}</td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-white">{item.directorate}</div>
+                        <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+                          <Building className="w-3 h-3 text-slate-500" />
+                          {item.baseUnit || 'Air HQ'}
                         </div>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-indigo-300">{item.equipmentType}</div>
-                      {item.isNewPc && (
-                        <span className="inline-block mt-0.5 px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
-                          NEW PC
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <div className="text-slate-200">{item.brandModel || '—'}</div>
-                      <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
-                    </td>
-                    <td className="p-3.5 text-slate-300">
-                      <div>{item.processor ? `${item.processor} (${item.generation || '?'}th Gen)` : '—'}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {item.ramGb ? `${item.ramGb}GB RAM` : ''}
-                        {(item.ssdGb > 0 || item.hddGb > 0) && (
-                          <span className="text-slate-300 ml-1">
-                            • {[
-                                item.ssdGb > 0 ? `${item.ssdGb}GB SSD` : null,
-                                item.hddGb > 0 ? `${item.hddGb >= 1000 ? `${item.hddGb / 1024 >= 1 ? `${Math.round(item.hddGb/1024)}TB` : `${item.hddGb}GB`}` : `${item.hddGb}GB`} HDD` : null
-                              ].filter(Boolean).join(' + ')}
+                        {item.location && (
+                          <div className="text-[10px] text-sky-400/90 font-medium mt-0.5">
+                            Loc: {item.location}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-indigo-300">{item.equipmentType}</div>
+                        {item.isNewPc && (
+                          <span className="inline-block mt-0.5 px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                            NEW PC
                           </span>
                         )}
-                        <span className="text-slate-500 ml-1">({item.storageType || 'N/A'})</span>
-                      </div>
-                    </td>
-                    <td className="p-3.5 space-y-1">
-                      {editingAdId === item.id ? (
-                        <div className="space-y-1 bg-slate-800 p-2 rounded-lg border border-slate-700 min-w-[140px]">
-                          <select
-                            value={editingAdStatus}
-                            onChange={(e) => setEditingAdStatus(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-                          >
-                            {AD_STATUS_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
-                          </select>
-                          <input
-                            type="text"
-                            placeholder="Add remark..."
-                            value={editingAdRemark}
-                            onChange={(e) => setEditingAdRemark(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-                          />
-                          <div className="flex gap-1.5 justify-end pt-1">
-                            <button 
-                              type="button" 
-                              onClick={() => setEditingAdId(null)} 
-                              className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300 hover:text-white"
+                      </td>
+                      <td className="p-3.5">
+                        <div className="text-slate-200">{item.brandModel || '—'}</div>
+                        <div className="font-mono text-[10px] text-slate-400">{item.serialNo || '—'}</div>
+                      </td>
+                      <td className="p-3.5 text-slate-300">
+                        <div>{item.processor ? `${item.processor} (${item.generation || '?'}th Gen)` : '—'}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {item.ramGb ? `${item.ramGb}GB RAM` : ''}
+                          {(item.ssdGb > 0 || item.hddGb > 0) && (
+                            <span className="text-slate-300 ml-1">
+                              • {[
+                                  item.ssdGb > 0 ? `${item.ssdGb}GB SSD` : null,
+                                  item.hddGb > 0 ? `${item.hddGb >= 1000 ? `${item.hddGb / 1024 >= 1 ? `${Math.round(item.hddGb/1024)}TB` : `${item.hddGb}GB`}` : `${item.hddGb}GB`} HDD` : null
+                                ].filter(Boolean).join(' + ')}
+                            </span>
+                          )}
+                          <span className="text-slate-500 ml-1">({item.storageType || 'N/A'})</span>
+                        </div>
+                      </td>
+                      <td className="p-3.5 space-y-1">
+                        {editingAdId === item.id ? (
+                          <div className="space-y-1 bg-slate-800 p-2 rounded-lg border border-slate-700 min-w-[140px]">
+                            <select
+                              value={editingAdStatus}
+                              onChange={(e) => setEditingAdStatus(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
                             >
-                              Cancel
-                            </button>
-                            <button 
-                              type="button" 
-                              onClick={() => handleQuickSaveAd(item.id)} 
-                              className="text-[10px] px-2 py-0.5 rounded bg-sky-600 text-white font-bold hover:bg-sky-500 flex items-center gap-1"
-                            >
-                              <Save className="w-3 h-3" /> Save
-                            </button>
+                              {AD_STATUS_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="Add remark..."
+                              value={editingAdRemark}
+                              onChange={(e) => setEditingAdRemark(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                            />
+                            <div className="flex gap-1.5 justify-end pt-1">
+                              <button 
+                                type="button" 
+                                onClick={() => setEditingAdId(null)} 
+                                className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300 hover:text-white"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleQuickSaveAd(item.id)} 
+                                className="text-[10px] px-2 py-0.5 rounded bg-sky-600 text-white font-bold hover:bg-sky-500 flex items-center gap-1"
+                              >
+                                <Save className="w-3 h-3" /> Save
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => {
-                            setEditingAdId(item.id);
-                            setEditingAdStatus(item.adStatus || 'Pending');
-                            setEditingAdRemark(item.adRemark || '');
-                          }}
-                          title="Click to quick edit AD status & remarks"
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] hover:opacity-80 transition-all cursor-pointer ${
-                            item.adStatus === 'Joined'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : item.adStatus === 'Not Joined'
-                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                          }`}
-                        >
-                          {item.adStatus === 'Joined' && <CheckCircle2 className="w-3 h-3" />}
-                          {item.adStatus === 'Not Joined' && <XCircle className="w-3 h-3" />}
-                          {item.adStatus === 'Pending' && <AlertCircle className="w-3 h-3" />}
-                          AD: {item.adStatus || 'Pending'}
-                        </button>
-                      )}
-                      {item.adRemark && editingAdId !== item.id && (
-                        <div className="text-[10px] text-rose-300 italic max-w-xs truncate" title={item.adRemark}>
-                          Reason: {item.adRemark}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                        item.status === 'Svc' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 space-y-1">
-                      <div className="text-[10px]">
-                        <span className="text-slate-500">W10: </span>
-                        <span className={item.win10Eligible?.includes('Eligible') ? 'text-emerald-400 font-semibold' : 'text-rose-400'}>
-                          {item.win10Eligible || 'N/A'}
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              setEditingAdId(item.id);
+                              setEditingAdStatus(item.adStatus || 'Pending');
+                              setEditingAdRemark(item.adRemark || '');
+                            }}
+                            title="Click to quick edit AD status & remarks"
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] hover:opacity-80 transition-all cursor-pointer ${
+                              item.adStatus === 'Joined'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : item.adStatus === 'Not Joined'
+                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            }`}
+                          >
+                            {item.adStatus === 'Joined' && <CheckCircle2 className="w-3 h-3" />}
+                            {item.adStatus === 'Not Joined' && <XCircle className="w-3 h-3" />}
+                            {item.adStatus === 'Pending' && <AlertCircle className="w-3 h-3" />}
+                            AD: {item.adStatus || 'Pending'}
+                          </button>
+                        )}
+                        {item.adRemark && editingAdId !== item.id && (
+                          <div className="text-[10px] text-rose-300 italic max-w-xs truncate" title={item.adRemark}>
+                            Reason: {item.adRemark}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                          item.status === 'Svc' 
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}>
+                          {item.status}
                         </span>
-                      </div>
-                      <div className="text-[10px]">
-                        <span className="text-slate-500">W11: </span>
-                        <span className={
-                          item.win11Eligible?.includes('Recommended')
-                            ? 'text-emerald-300 font-extrabold px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 inline-block'
-                            : item.win11Eligible?.includes('Eligible')
-                              ? 'text-blue-400 font-semibold'
-                              : 'text-rose-400'
-                        }>
-                          {item.win11Eligible || 'N/A'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/equipment/${item.id}/edit`}
-                          className="p-1.5 rounded-lg bg-slate-800 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300 transition-colors"
-                          title="Edit Equipment"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
-                          title="Delete Equipment"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                      <td className="p-3.5 space-y-1">
+                        <div className="text-[10px]">
+                          <span className="text-slate-500">W10: </span>
+                          <span className={item.win10Eligible?.includes('Eligible') ? 'text-emerald-400 font-semibold' : 'text-rose-400'}>
+                            {item.win10Eligible || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="text-[10px]">
+                          <span className="text-slate-500">W11: </span>
+                          <span className={
+                            item.win11Eligible?.includes('Recommended')
+                              ? 'text-emerald-300 font-extrabold px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 inline-block'
+                              : item.win11Eligible?.includes('Eligible')
+                                ? 'text-blue-400 font-semibold'
+                                : 'text-rose-400'
+                          }>
+                            {item.win11Eligible || 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/equipment/${item.id}/edit`}
+                            className="p-1.5 rounded-lg bg-slate-800 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300 transition-colors"
+                            title="Edit Equipment"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
+                            title="Delete Equipment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls Bar */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalCount / pageSize) || 1}
+              pageSize={pageSize}
+              totalItems={totalCount}
+              onPageChange={(page) => setCurrentPage(page)}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </>
         )}
       </div>
 

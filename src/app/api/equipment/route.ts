@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calcWin10, calcWin11, calcStorageType } from '@/lib/eligibility';
 import { Prisma } from '@prisma/client';
+import { serverCache, invalidateEquipmentCache } from '@/lib/cache';
 
 function mapEquipmentRow(r: any) {
   return {
@@ -51,6 +52,23 @@ export async function GET(request: Request) {
     const isNewPc = searchParams.get('isNewPc') || '';
     const issueStatus = searchParams.get('issueStatus') || '';
     const win11Eligible = searchParams.get('win11Eligible') || '';
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null;
+    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0;
+
+    // Secure cache key scoped to user session and role
+    const userId = user?.id || user?.username || 'anon';
+    const userBase = user?.baseUnit || 'all';
+    const cacheKey = `equipment:${userId}:${userBase}:${search}:${directorate}:${baseUnit}:${status}:${equipmentType}:${adStatus}:${isNewPc}:${issueStatus}:${win11Eligible}:${limit}:${offset}`;
+
+    const cached = serverCache.get<{ data: any[]; totalCount: number }>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          'X-Cache': 'HIT',
+          'X-Total-Count': cached.totalCount.toString(),
+        },
+      });
+    }
 
     const conditions: Prisma.Sql[] = [];
 
@@ -90,14 +108,35 @@ export async function GET(request: Request) {
       ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
       : Prisma.empty;
 
+    const countRows: any[] = await prisma.$queryRaw`
+      SELECT COUNT(*)::int as count FROM "public"."equipment"
+      ${whereClause}
+    `;
+    const totalCount = countRows[0]?.count || 0;
+
+    let paginationClause = Prisma.empty;
+    if (limit && limit > 0) {
+      paginationClause = Prisma.sql`LIMIT ${limit} OFFSET ${offset}`;
+    }
+
     const rows: any[] = await prisma.$queryRaw`
       SELECT * FROM "public"."equipment"
       ${whereClause}
       ORDER BY "sn" ASC
+      ${paginationClause}
     `;
 
     const equipment = rows.map(mapEquipmentRow);
-    return NextResponse.json(equipment);
+
+    // Save in secure server cache for 60 seconds
+    serverCache.set(cacheKey, { data: equipment, totalCount }, 60000);
+
+    return NextResponse.json(equipment, {
+      headers: {
+        'X-Cache': 'MISS',
+        'X-Total-Count': totalCount.toString(),
+      },
+    });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
@@ -165,6 +204,8 @@ export async function POST(request: Request) {
         win11Eligible,
       },
     });
+
+    invalidateEquipmentCache();
 
     return NextResponse.json(equipment);
   } catch (error: any) {
