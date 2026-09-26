@@ -4,10 +4,32 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { invalidateEquipmentCache } from '@/lib/cache';
 
-function parseId(id: any): string | null {
+function parseBigInt(id: any): bigint | null {
   if (!id) return null;
   const s = id.toString();
-  return /^\d+$/.test(s) ? s : null;
+  if (/^\d+$/.test(s)) {
+    try {
+      return BigInt(s);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// Convert BigInt values to string to prevent JSON serialization errors
+function serializeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeBigInt);
+  if (typeof obj === 'object') {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = serializeBigInt(obj[key]);
+    }
+    return res;
+  }
+  return obj;
 }
 
 export async function POST(request: Request) {
@@ -23,7 +45,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'items array is required and must not be empty' }, { status: 400 });
     }
 
-    // Validate
+    // Validate inputs
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (!item.newPcId) {
@@ -46,19 +68,19 @@ export async function POST(request: Request) {
     const issued = [];
 
     for (const item of items) {
-      const newPcIdStr = parseId(item.newPcId);
-      const oldPcIdStr = parseId(item.oldPcId);
+      const newPcIdBig = parseBigInt(item.newPcId);
+      const oldPcIdBig = parseBigInt(item.oldPcId);
 
-      if (!newPcIdStr) {
+      if (!newPcIdBig) {
         return NextResponse.json({ error: `Invalid newPcId` }, { status: 400 });
       }
 
       const issuedTo = item.issuedTo;
       const issuedOffice = item.issuedOffice;
       const issuedBase = item.issuedBase;
-      const isReplacement = item.issueMode === 'replace-old' && Boolean(oldPcIdStr);
+      const isReplacement = item.issueMode === 'replace-old' && Boolean(oldPcIdBig);
 
-      // Auto-number PC within section using raw SQL
+      // Auto-number PC within section
       const sectionRows: any[] = await prisma.$queryRaw`
         SELECT "pc_number" as "pcNumber" FROM "public"."issue_records"
         WHERE "issued_to" = ${issuedTo}
@@ -69,15 +91,15 @@ export async function POST(request: Request) {
       const nextPcNumber = usedNumbers.length === 0 ? 1 : Math.max(...usedNumbers) + 1;
       const sectionLabel = `PC-${nextPcNumber}`;
 
-      // Create issue record via raw SQL
+      // Create issue record
       const issueRecordRows: any[] = await prisma.$queryRaw`
         INSERT INTO "public"."issue_records"
         ("equipment_id", "issued_to", "issued_office", "issued_base", "section_label", "pc_number", "letter_ref", "letter_authority", "is_replacement", "replaced_equipment_id", "created_at")
         VALUES
-        (${newPcIdStr}::int8, ${issuedTo}, ${issuedOffice}, ${issuedBase}, ${sectionLabel}, ${nextPcNumber}, ${letterRef || null}, ${letterAuthority || null}, ${isReplacement}, ${isReplacement ? `${oldPcIdStr}::int8` : null}, NOW())
+        (${newPcIdBig}, ${issuedTo}, ${issuedOffice}, ${issuedBase}, ${sectionLabel}, ${nextPcNumber}, ${letterRef || null}, ${letterAuthority || null}, ${isReplacement}, ${oldPcIdBig}, NOW())
         RETURNING *
       `;
-      const issueRecord = issueRecordRows[0];
+      const issueRecord = serializeBigInt(issueRecordRows[0]);
 
       // Mark new PC as Issued
       await prisma.$executeRaw`
@@ -87,15 +109,15 @@ export async function POST(request: Request) {
             "base_unit" = ${issuedBase},
             "location" = ${issuedTo},
             "updated_at" = NOW()
-        WHERE "id" = ${newPcIdStr}::int8
+        WHERE "id" = ${newPcIdBig}
       `;
 
       let withdrawalRecord = null;
 
-      // If replacing old PC
-      if (isReplacement && oldPcIdStr) {
+      // If replacing old PC: Queue for withdrawal
+      if (isReplacement && oldPcIdBig) {
         const oldPcRows: any[] = await prisma.$queryRaw`
-          SELECT * FROM "public"."equipment" WHERE "id" = ${oldPcIdStr}::int8 LIMIT 1
+          SELECT * FROM "public"."equipment" WHERE "id" = ${oldPcIdBig} LIMIT 1
         `;
         const oldPc = oldPcRows[0];
 
@@ -103,23 +125,24 @@ export async function POST(request: Request) {
           INSERT INTO "public"."withdrawal_records"
           ("equipment_id", "withdrawn_from", "withdrawn_base", "withdrawn_by", "reason", "issue_record_id", "created_at", "withdrawn_at")
           VALUES
-          (${oldPcIdStr}::int8, ${oldPc?.directorate || issuedOffice}, ${oldPc?.base_unit || issuedBase}, ${item.withdrawnBy || user.name || user.username}, ${item.withdrawalReason || 'Replaced with new PC (Not Eligible)'}, ${issueRecord.id?.toString()}::int8, NOW(), NOW())
+          (${oldPcIdBig}, ${oldPc?.directorate || issuedOffice}, ${oldPc?.base_unit || issuedBase}, ${item.withdrawnBy || user.name || user.username}, ${item.withdrawalReason || 'Replaced with new PC (Pending Withdrawal Letter)'}, ${parseBigInt(issueRecord.id)}, NOW(), NOW())
           RETURNING *
         `;
-        withdrawalRecord = wdRows[0];
+        withdrawalRecord = serializeBigInt(wdRows[0]);
 
+        // Mark old PC as Pending Withdrawal so it stays queued in Withdrawal tab
         await prisma.$executeRaw`
           UPDATE "public"."equipment"
-          SET "issue_status" = 'Withdrawn & Issued',
+          SET "issue_status" = 'Pending Withdrawal',
               "updated_at" = NOW()
-          WHERE "id" = ${oldPcIdStr}::int8
+          WHERE "id" = ${oldPcIdBig}
         `;
 
         await prisma.$executeRaw`
           INSERT INTO "public"."upgradation_records"
           ("equipment_id", "withdrawal_id", "remarks", "created_at", "updated_at")
           VALUES
-          (${oldPcIdStr}::int8, ${withdrawalRecord.id?.toString()}::int8, ${`Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.base_unit || issuedBase})`}, NOW(), NOW())
+          (${oldPcIdBig}, ${parseBigInt(withdrawalRecord.id)}, ${`Withdrawn from ${oldPc?.directorate || issuedOffice} (${oldPc?.base_unit || issuedBase})`}, NOW(), NOW())
         `;
       }
 

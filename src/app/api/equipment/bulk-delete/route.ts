@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { invalidateEquipmentCache } from '@/lib/cache';
 
 export async function POST(request: Request) {
   try {
@@ -45,9 +46,12 @@ export async function POST(request: Request) {
     await prisma.$executeRaw`DELETE FROM "public"."issue_records" WHERE "replaced_equipment_id" IN (${inClause})`;
 
     // Delete equipment records
-    const deletedCount: any = await prisma.$executeRaw`
+    await prisma.$executeRaw`
       DELETE FROM "public"."equipment" WHERE "id" IN (${inClause})
     `;
+
+    // Invalidate server cache so deleted items disappear immediately
+    invalidateEquipmentCache();
 
     return NextResponse.json({
       message: `Successfully deleted ${safeIds.length} equipment item(s)`,

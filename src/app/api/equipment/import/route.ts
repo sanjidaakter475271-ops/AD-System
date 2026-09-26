@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calcWin10, calcWin11, calcStorageType } from '@/lib/eligibility';
+import { invalidateEquipmentCache } from '@/lib/cache';
 
 export async function POST(request: Request) {
   try {
@@ -41,6 +42,13 @@ export async function POST(request: Request) {
         return str;
       };
 
+      const parseBoolean = (val: any) => {
+        if (typeof val === 'boolean') return val;
+        if (!val) return false;
+        const str = String(val).trim().toLowerCase();
+        return ['new', 'brand new', 'fresh', 'yes', 'true', '1'].includes(str);
+      };
+
       const sn = raw.sn ? parseInt(raw.sn) : currentSn;
       const processor = cleanString(raw.processor);
       const generation = parseGen(raw.generation || raw.processor);
@@ -48,14 +56,19 @@ export async function POST(request: Request) {
       const ssdGb = parseNum(raw.ssdGb);
       const hddGb = parseNum(raw.hddGb);
 
+      const isNewPc = parseBoolean(raw.isNewPc ?? raw.PC_Condition ?? raw.condition ?? raw.newOrExisting);
+
       const win10Eligible = raw.win10Eligible || calcWin10(processor, generation, ramGb);
       const win11Eligible = raw.win11Eligible || calcWin11(processor, generation, ramGb, ssdGb, hddGb);
       const storageType = raw.storageType || calcStorageType(ssdGb, hddGb);
 
+      const directorate = cleanString(raw.directorate) || 'General';
+      const baseUnit = cleanString(raw.baseUnit || raw.base) || 'Air HQ';
+
       recordsToInsert.push({
         sn,
-        baseUnit: cleanString(raw.baseUnit || raw.base) || 'Air HQ',
-        directorate: cleanString(raw.directorate) || 'General',
+        baseUnit,
+        directorate: isNewPc ? (cleanString(raw.intendedOffice) || directorate) : directorate,
         equipmentType: cleanString(raw.equipmentType || raw.type) || 'Desktop',
         brandModel: cleanString(raw.brandModel || raw.model),
         serialNo: cleanString(raw.serialNo || raw.sn_serial),
@@ -67,14 +80,18 @@ export async function POST(request: Request) {
         storageType,
         status: cleanString(raw.status) || 'Svc',
         location: cleanString(raw.location),
-        issueStatus: cleanString(raw.issueStatus) || 'Not Issued',
+        issueStatus: isNewPc ? 'Not Issued' : (cleanString(raw.issueStatus) || 'Issued'),
+        isNewPc,
+        intendedOffice: isNewPc ? (cleanString(raw.intendedOffice || raw.directorate) || 'General') : null,
+        intendedBase: isNewPc ? (cleanString(raw.intendedBase || raw.baseUnit) || 'Air HQ') : null,
+        adStatus: cleanString(raw.adStatus) || 'Pending',
         win10Remark: cleanString(raw.win10Remark),
         win10Eligible,
         win11Eligible,
       });
     }
 
-    // Insert individually or in transaction to handle potential duplicate SNs gracefully
+    // Upsert into database
     let insertedCount = 0;
     for (const record of recordsToInsert) {
       await prisma.equipment.upsert({
@@ -84,6 +101,8 @@ export async function POST(request: Request) {
       });
       insertedCount++;
     }
+
+    invalidateEquipmentCache();
 
     return NextResponse.json({
       message: `Successfully imported ${insertedCount} equipment items!`,

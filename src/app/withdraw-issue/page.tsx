@@ -1042,10 +1042,10 @@ export default function WithdrawIssuePage() {
             )}
           </div>
 
-          {/* Not Eligible PCs List Available for Withdrawal */}
+          {/* Not Eligible PCs List Available for Withdrawal Queue */}
           {(() => {
             const notEligiblePcsToWithdraw = inventory.filter(p => {
-              if (p.issueStatus === 'Withdrawn' || p.issueStatus === 'Withdrawn & Issued') return false;
+              if (p.issueStatus === 'Withdrawn') return false;
               if (wdFilterBase && p.baseUnit !== wdFilterBase) return false;
               if (wdFilterOffice && p.directorate !== wdFilterOffice) return false;
               return true;
@@ -1138,7 +1138,11 @@ export default function WithdrawIssuePage() {
                               </td>
                               <td className="p-3.5"><span className="text-rose-400 font-bold text-[10px]">{p.win10Eligible || 'N/A'}</span></td>
                               <td className="p-3.5">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  p.issueStatus === 'Pending Withdrawal'
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                                    : 'bg-slate-700 text-slate-300 border-slate-600'
+                                }`}>
                                   {p.issueStatus || 'Pending Withdrawal'}
                                 </span>
                               </td>

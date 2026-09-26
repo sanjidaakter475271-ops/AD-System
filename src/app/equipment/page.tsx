@@ -141,8 +141,8 @@ export default function EquipmentPage() {
     try {
       const res = await fetch(`/api/equipment/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete item');
-      setEquipment(equipment.filter((item) => item.id !== id));
       setSelectedIds(prev => prev.filter(selectedId => selectedId !== String(id)));
+      fetchEquipment(currentPage, pageSize);
     } catch (err: any) {
       alert(err.message);
     }
@@ -180,8 +180,8 @@ export default function EquipmentPage() {
         throw new Error(err.error || 'Failed to bulk delete items');
       }
 
-      setEquipment(prev => prev.filter((item) => !selectedIds.includes(String(item.id))));
       setSelectedIds([]);
+      fetchEquipment(currentPage, pageSize);
     } catch (err: any) {
       alert(err.message);
     }

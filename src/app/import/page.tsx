@@ -10,7 +10,9 @@ import {
   AlertCircle, 
   ArrowLeft,
   Database,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  Tag
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -29,7 +31,9 @@ export default function ExcelImportPage() {
     const sampleRows = [
       {
         SN: 101,
-        Directorate: 'ADOC',
+        'PC Condition': 'New', // New or Existing
+        IntendedBase: 'Air HQ',
+        IntendedOffice: 'ADOC',
         Type: 'Desktop',
         BrandModel: 'Dell OptiPlex 7090',
         SerialNo: 'SN-DELL-101',
@@ -39,10 +43,11 @@ export default function ExcelImportPage() {
         SSD_GB: 512,
         HDD_GB: 0,
         Status: 'Svc',
-        Location: 'HQ Room 102'
+        Location: 'HQ Store'
       },
       {
         SN: 102,
+        'PC Condition': 'Existing',
         Directorate: 'Air HQ (U)',
         Type: 'Laptop',
         BrandModel: 'HP ProBook 450 G8',
@@ -90,7 +95,7 @@ export default function ExcelImportPage() {
         const formatted = rawJson
           .filter((row) => {
             const snVal = row['S/N'] || row.SN || row.sn || row.Serial;
-            const dteVal = row.Dte || row.Directorate || row.directorate;
+            const dteVal = row.Dte || row.Directorate || row.directorate || row.IntendedOffice || row.Office;
             const typeVal = row['Types of Eqpt'] || row.Type || row.type;
             return snVal || dteVal || typeVal;
           })
@@ -131,19 +136,44 @@ export default function ExcelImportPage() {
             const hddGb = parseNum(row.HDD || row.HDD_GB || row.hdd);
             const ssdGb = parseNum(row.SSD || row.SSD_GB || row.ssd);
 
-            const baseUnit = cleanString(row.Base || row['Base Unit'] || row.baseUnit || row.base_unit) || 'Air HQ';
+            const baseUnit = cleanString(row.Base || row['Base Unit'] || row.baseUnit || row.base_unit || row.IntendedBase) || 'Air HQ';
+            const directorate = cleanString(row.Dte || row.Directorate || row.directorate || row.Dir || row.IntendedOffice || row.Office) || 'General';
             const location = cleanString(row['Present Loc'] || row.Location || row.location);
 
-            const remarks = String(row.Remarks || row.remarks || '');
-            let issueStatus = 'Not Issued';
-            if (remarks.toLowerCase().includes('issued')) {
-              issueStatus = 'Issued';
+            // PC Condition Detection (New vs Existing)
+            const conditionVal = String(
+              row['PC Condition'] || row['PC_Condition'] || row.Condition || row['New or Existing'] || row['New/Existing'] || row.IsNew || row.isNewPc || ''
+            ).trim().toLowerCase();
+
+            let isNewPc = false;
+            if (['new', 'brand new', 'fresh', 'yes', 'true', '1'].includes(conditionVal)) {
+              isNewPc = true;
+            } else if (['existing', 'old', 'issued', 'no', 'false', '0'].includes(conditionVal)) {
+              isNewPc = false;
+            } else {
+              // Smart Auto-detection if column is omitted
+              const remarks = String(row.Remarks || row.remarks || '').toLowerCase();
+              if (remarks.includes('new') || remarks.includes('fresh') || location?.toLowerCase().includes('store')) {
+                isNewPc = true;
+              }
+            }
+
+            // AD Status mapping (e.g. 'ok' -> 'Joined', 'pending' -> 'Pending')
+            const rawAdStatus = String(row['AD Status'] || row.adStatus || row.ad_status || '').trim().toLowerCase();
+            let adStatus = 'Pending';
+            if (['ok', 'joined', 'yes', 'true'].includes(rawAdStatus)) {
+              adStatus = 'Joined';
+            } else if (['not joined', 'failed', 'no'].includes(rawAdStatus)) {
+              adStatus = 'Not Joined';
             }
 
             return {
               sn: snParsed || (idx + 1),
+              isNewPc,
               baseUnit,
-              directorate: cleanString(row.Dte || row.Directorate || row.directorate || row.Dir) || 'General',
+              directorate,
+              intendedBase: baseUnit,
+              intendedOffice: directorate,
               equipmentType: cleanString(row['Types of Eqpt'] || row.Type || row.type || row['Equipment Type'] || row.equipmentType) || 'Desktop',
               brandModel: cleanString(row['Brand & Model'] || row.BrandModel || row.model || row.brandModel),
               serialNo: cleanString(row['Serial No'] || row.SerialNo || row.serial || row.serialNo),
@@ -153,8 +183,9 @@ export default function ExcelImportPage() {
               ssdGb,
               hddGb,
               status: cleanString(row.Status || row.status) || 'Svc',
-              location,
-              issueStatus,
+              location, // Optional suggestion for New PCs
+              issueStatus: isNewPc ? 'Not Issued' : (cleanString(row.IssueStatus || row.issueStatus) || 'Issued'),
+              adStatus,
               win10Remark: cleanString(row['Win 10 RMK'] || row.win10Remark),
             };
           });
@@ -169,6 +200,19 @@ export default function ExcelImportPage() {
     };
 
     reader.readAsBinaryString(uploadedFile);
+  };
+
+  // Toggle IsNewPc per row in preview table
+  const toggleRowCondition = (idx: number) => {
+    setParsedData(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const nextIsNew = !item.isNewPc;
+      return {
+        ...item,
+        isNewPc: nextIsNew,
+        issueStatus: nextIsNew ? 'Not Issued' : 'Issued',
+      };
+    }));
   };
 
   // Submit to Database API
@@ -204,10 +248,10 @@ export default function ExcelImportPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <Link 
             href="/equipment" 
@@ -218,9 +262,9 @@ export default function ExcelImportPage() {
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
               <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
-              Excel Data Import (ইমপোর্ট)
+              Smart Excel &amp; CSV Import
             </h1>
-            <p className="text-sm text-slate-400">Import bulk equipment data directly from .xlsx, .xls or .csv spreadsheet</p>
+            <p className="text-sm text-slate-400">Import bulk equipment data with automatic condition detection (New vs Existing Stock)</p>
           </div>
         </div>
 
@@ -254,14 +298,16 @@ export default function ExcelImportPage() {
         </div>
         
         <div>
-          <h3 className="text-lg font-bold text-white">Upload Equipment Excel File</h3>
-          <p className="text-xs text-slate-400 mt-1">Supports Microsoft Excel (.xlsx, .xls) and CSV spreadsheet files</p>
+          <h3 className="text-lg font-bold text-white">Upload Equipment Excel / CSV File</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            Supports columns: <code className="text-emerald-400 bg-slate-800 px-1.5 py-0.5 rounded">PC Condition</code> (New / Existing), <code className="text-emerald-400 bg-slate-800 px-1.5 py-0.5 rounded">SN</code>, <code className="text-emerald-400 bg-slate-800 px-1.5 py-0.5 rounded">Directorate</code>, <code className="text-emerald-400 bg-slate-800 px-1.5 py-0.5 rounded">Type</code>, Specs, etc.
+          </p>
         </div>
 
         <div className="flex justify-center">
           <label className="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all">
             <FileSpreadsheet className="w-5 h-5" />
-            <span>Select Excel File</span>
+            <span>Select Excel / CSV File</span>
             <input
               type="file"
               accept=".xlsx, .xls, .csv"
@@ -281,13 +327,15 @@ export default function ExcelImportPage() {
       {/* Preview Section */}
       {parsedData.length > 0 && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-emerald-400" />
                 Parsed Records Preview ({parsedData.length} items found)
               </h2>
-              <p className="text-xs text-slate-400">Review data below before saving to Air HQ database</p>
+              <p className="text-xs text-slate-400">
+                Tip: Click on <span className="text-emerald-400 font-semibold">[NEW PC]</span> or <span className="text-slate-400 font-semibold">[EXISTING]</span> badges to switch condition per row before uploading.
+              </p>
             </div>
 
             <button
@@ -302,19 +350,19 @@ export default function ExcelImportPage() {
 
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-left text-xs text-slate-200">
-              <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px] sticky top-0">
+              <thead className="bg-slate-800 text-slate-400 uppercase font-semibold text-[11px] sticky top-0 z-10">
                 <tr>
                   <th className="p-3">SN</th>
+                  <th className="p-3">PC Condition (Click to Toggle)</th>
                   <th className="p-3">Base Unit</th>
-                  <th className="p-3">Directorate</th>
+                  <th className="p-3">Directorate / Intended Office</th>
                   <th className="p-3">Type</th>
-                  <th className="p-3">Brand & Model</th>
+                  <th className="p-3">Brand &amp; Model</th>
                   <th className="p-3">Serial No</th>
                   <th className="p-3">Processor</th>
                   <th className="p-3">Gen</th>
                   <th className="p-3">RAM</th>
                   <th className="p-3">Storage</th>
-                  <th className="p-3">Location</th>
                   <th className="p-3">Status</th>
                 </tr>
               </thead>
@@ -322,9 +370,27 @@ export default function ExcelImportPage() {
                 {parsedData.map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
                     <td className="p-3 font-bold text-emerald-400">#{item.sn}</td>
+                    
+                    {/* Interactive Condition Toggle Badge */}
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleRowCondition(idx)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer ${
+                          item.isNewPc
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white'
+                        }`}
+                        title="Click to toggle between New PC and Existing Stock"
+                      >
+                        <Tag className="w-3 h-3" />
+                        {item.isNewPc ? 'NEW PC (Not Issued)' : 'EXISTING STOCK'}
+                      </button>
+                    </td>
+
                     <td className="p-3 text-slate-300">{item.baseUnit}</td>
                     <td className="p-3 font-medium text-white">{item.directorate}</td>
-                    <td className="p-3">{item.equipmentType}</td>
+                    <td className="p-3 font-semibold text-indigo-300">{item.equipmentType}</td>
                     <td className="p-3 text-slate-300">{item.brandModel || '—'}</td>
                     <td className="p-3 font-mono text-slate-400">{item.serialNo || '—'}</td>
                     <td className="p-3">{item.processor || '—'}</td>
@@ -333,7 +399,6 @@ export default function ExcelImportPage() {
                     <td className="p-3">
                       {item.ssdGb > 0 ? `${item.ssdGb}GB SSD` : ''} {item.hddGb > 0 ? `${item.hddGb}GB HDD` : ''}
                     </td>
-                    <td className="p-3 text-slate-300">{item.location || '—'}</td>
                     <td className="p-3">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-[10px]">
                         {item.status}

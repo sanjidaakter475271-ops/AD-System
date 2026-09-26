@@ -1,0 +1,11 @@
+S/N,Base,Type,Dte,Types of Eqpt,Brand & Model,Serial No,"Processor, RAM & HDD/SSD",CPU,RAM,HDD,SSD,Status,Location,Remarks,AD Status
+1,Air HQ,New,BAF RO,All-in-One,Barnd: HP Model: EliteOne 800 G3,SGH831SVM56575,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,AD,Withdraw & Issue,Pending
+2,Air HQ,New,BAF RO,Desktop,Brand: Clone Model: 107S76 Ser: AU1A0743000354,SGH831SVM56576,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-1,Withdraw & Issue,ok
+3,Air HQ,New,BAF RO,Desktop,Brand: Dell Model: OPYUPLEX-GXI,SGH831SVM56577,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-3,Issued,ok
+4,Air HQ,New,BAF RO,Desktop,Brand: NAVANA Model: 59185,SGH831SVM56578,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,Ad & Pub,Withdraw & Issue,Pending
+5,Air HQ,New,BAF RO,Desktop,Brand: Pride Model: 486SX33,SGH831SVM56579,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-2,Withdraw & Issue,Pending
+6,Air HQ,New,BAF RO,All-in-One,Brand: Hp Model: Flite one 800G3,SGH831SVM56580,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-4,Issued,ok
+7,Air HQ,New,BAF RO,Desktop,Brand: Clone Model:,SGH831SVM56581,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-1,Withdraw & Issue,ok
+8,Air HQ,New,BAF RO,Desktop,Brand: Clone Model:,SGH831SVM56582,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-3,Withdraw & Issue,Pending
+9,Air HQ,New,BAF RO,Desktop,Brand: Clone Model:,SGH831SVM56583,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,O/R-6,Withdraw & Issue,ok
+10,Air HQ,New,BAF RO,Desktop,Brand: Clone Model:,SGH831SVM56584,"Corei5 13th Gen, RAM: 8 GB, HDD: 500 GB, SSD: 512 GB",Corei5 13th Gen,8 GB,500 GB,512 GB,svc,PA,Issued,ok
